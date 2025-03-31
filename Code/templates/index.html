@@ -1,0 +1,146 @@
+<!-- Index.html -->
+
+<html>
+  <head>
+    <title>Cat Detection Stream</title>
+    <style>
+      #video-feed { max-width: 100%; height: auto; }
+      .control-panel { 
+        margin: 20px; padding: 15px; 
+        border: 1px solid #ccc; border-radius: 5px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      .system-status, .motor-control { padding: 10px; }
+      button { padding: 8px 15px; margin: 5px; font-size: 16px; }
+      .status { margin: 10px 0; }
+      input[type="range"] { width: 100%; margin: 10px 0; }
+      .position-display { 
+        font-family: monospace;
+        display: flex;
+        justify-content: space-between;
+      }
+      .target-value { color: blue; font-weight: bold; }
+      .current-value { color: black; }
+      .control-section { margin-bottom: 20px; }
+    </style>
+  </head>
+  <body>
+    <h1>Cat Detection Stream</h1>
+    <img id="video-feed" src="/video_feed">
+    
+    <div class="control-panel">
+      <div class="system-status">
+        <div class="control-section">
+          <h2>System Status</h2>
+          <div class="status">Homing Status: <span id="homing-status">Not Complete</span></div>
+          <div class="status">Hall Sensor 1: <span id="sensor-status-1">-</span></div>
+          <div class="status">Hall Sensor 2: <span id="sensor-status-2">-</span></div>
+        </div>
+        
+        <div class="control-section">
+          <h2>Auto Movement</h2>
+          <button onclick="controlMotor('start')">Start Auto Mode</button>
+          <button onclick="controlMotor('stop')">Stop All Motors</button>
+          <div class="status">Motor Status: <span id="motor-status">Idle</span></div>
+        </div>
+      </div>
+
+      <div class="motor-control">
+        <h2>Manual Motor Control</h2>
+        
+        <div class="control-section" id="motor1-control">
+          <h3>Motor 1</h3>
+          <input type="range" id="motor1-slider" min="-180" max="180" value="0" step="5">
+          <div class="position-display">
+            <span>Current: <span class="current-value" id="motor1-pos">0°</span></span>
+            <span>Target: <span class="target-value" id="motor1-target">0°</span></span>
+          </div>
+          <button onclick="moveMotor(1)">Move Motor 1</button>
+        </div>
+        
+        <div class="control-section" id="motor2-control">
+          <h3>Motor 2</h3>
+          <input type="range" id="motor2-slider" min="-180" max="180" value="0" step="5">
+          <div class="position-display">
+            <span>Current: <span class="current-value" id="motor2-pos">0°</span></span>
+            <span>Target: <span class="target-value" id="motor2-target">0°</span></span>
+          </div>
+          <button onclick="moveMotor(2)">Move Motor 2</button>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      // Track target positions in degrees
+      const targetPositions = {1: 0, 2: 0};
+      
+      // Update target positions when sliders move
+      document.getElementById('motor1-slider').addEventListener('input', function() {
+        targetPositions[1] = parseInt(this.value);
+        document.getElementById('motor1-target').textContent = targetPositions[1] + '°';
+      });
+      
+      document.getElementById('motor2-slider').addEventListener('input', function() {
+        targetPositions[2] = parseInt(this.value);
+        document.getElementById('motor2-target').textContent = targetPositions[2] + '°';
+      });
+
+      // Motor control functions
+      function moveMotor(motorNum) {
+        const position = targetPositions[motorNum];
+        fetch(`/set_motor_position?motor=${motorNum}&position=${position}`)
+          .then(r => r.json())
+          .then(data => console.log(`Motor ${motorNum} moving to ${position} degrees`));
+      }
+      
+      function controlMotor(action) {
+        fetch('/motor_control?action=' + action)
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('motor-status').textContent = data.status;
+          });
+      }
+      
+      // Status updates
+      function updateStatus() {
+        // System status
+        fetch('/homing_status')
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('homing-status').textContent = 
+              data.complete ? "Complete" : "In Progress";
+          });
+        
+        // Sensor status
+        fetch('/sensor_status/1').then(r => r.text()).then(t => {
+          document.getElementById('sensor-status-1').textContent = t;
+        });
+        fetch('/sensor_status/2').then(r => r.text()).then(t => {
+          document.getElementById('sensor-status-2').textContent = t;
+        });
+        
+        // Motor positions (updates current position display only)
+        fetch('/get_motor_positions')
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('motor1-pos').textContent = data.motor1.toFixed(2) + '°';
+            document.getElementById('motor2-pos').textContent = data.motor2.toFixed(2) + '°';
+          });
+        
+        setTimeout(updateStatus, 500);
+      }
+      
+      // Initialize
+      updateStatus();
+      
+      // Video feed reconnect
+      setInterval(() => {
+        if (document.getElementById('video-feed').naturalWidth === 0) {
+          document.getElementById('video-feed').src = '/video_feed?' + Date.now();
+        }
+      }, 2000);
+    </script>
+  </body>
+</html>
