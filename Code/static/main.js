@@ -1,14 +1,15 @@
 document.addEventListener("DOMContentLoaded", function () {
-    function hideSpinner() {
-        document.getElementById('loading-spinner').style.display = 'none';
-        document.getElementById('video-feed').style.display = 'inline';
-    }
-
-    const videoFeed = document.getElementById("video-feed");
-    videoFeed.onload = hideSpinner
     const targetPositions = { 1: 0, 2: 0 };
+    const videoFeed = document.getElementById("video-feed");
     let followMode = false, mouseX = null, mouseY = null, isHovering = false;
     let lastSent = { x: null, y: null };
+
+    function hideSpinner() {
+        document.getElementById('loading-spinner').style.display = 'none';
+        videoFeed.style.display = 'inline';
+    }
+
+    videoFeed.onload = hideSpinner;
 
     function toggleFollowMode() {
         followMode = !followMode;
@@ -16,9 +17,16 @@ document.addEventListener("DOMContentLoaded", function () {
         btn.innerHTML = followMode
             ? '<i class="fas fa-mouse-pointer"></i> Follow Mode (ON)'
             : '<i class="fas fa-hand-pointer"></i> Manual Click Mode';
-
         document.getElementById("video-overlay").style.display = followMode ? "block" : "none";
     }
+
+    document.getElementById("follow-mode-btn").addEventListener("click", toggleFollowMode);
+
+    // Button actions
+    document.getElementById("start-btn").addEventListener("click", () => controlMotor("start"));
+    document.getElementById("stop-btn").addEventListener("click", () => controlMotor("stop"));
+    document.getElementById("laser-btn").addEventListener("click", toggleLaser);
+    document.getElementById("shoot-btn").addEventListener("click", shoot);
 
     function debounce(func, wait) {
         let timeout;
@@ -58,27 +66,6 @@ document.addEventListener("DOMContentLoaded", function () {
             });
     }
 
-    videoFeed.addEventListener("mouseenter", () => isHovering = true);
-    videoFeed.addEventListener("mouseleave", () => isHovering = false);
-
-    videoFeed.addEventListener("mousemove", (event) => {
-        const rect = videoFeed.getBoundingClientRect();
-        mouseX = Math.round(event.clientX - rect.left);
-        mouseY = Math.round(event.clientY - rect.top);
-    });
-
-    videoFeed.addEventListener("click", function (event) {
-        if (followMode) return;
-        const rect = this.getBoundingClientRect();
-        const x = Math.round(event.clientX - rect.left);
-        const y = Math.round(event.clientY - rect.top);
-        fetch("/click_target", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ x, y })
-        });
-    });
-
     function toggleLaser() {
         fetch('/toggle_laser')
             .then(r => r.json())
@@ -96,18 +83,10 @@ document.addEventListener("DOMContentLoaded", function () {
         fetch('/shoot')
             .then(r => r.json())
             .then(data => {
-                if (data.status === 'busy') {
-                    btn.textContent = "BUSY (TRY AGAIN)";
-                    setTimeout(() => {
-                        btn.textContent = "Spray!";
-                        btn.disabled = false;
-                    }, 1000);
-                } else {
-                    setTimeout(() => {
-                        btn.textContent = "Spray!";
-                        btn.disabled = false;
-                    }, 500);
-                }
+                setTimeout(() => {
+                    btn.textContent = "Spray!";
+                    btn.disabled = false;
+                }, data.status === 'busy' ? 1000 : 500);
             })
             .catch(error => {
                 btn.textContent = "ERROR!";
@@ -118,6 +97,26 @@ document.addEventListener("DOMContentLoaded", function () {
                 }, 1000);
             });
     }
+
+    videoFeed.addEventListener("mouseenter", () => isHovering = true);
+    videoFeed.addEventListener("mouseleave", () => isHovering = false);
+    videoFeed.addEventListener("mousemove", (event) => {
+        const rect = videoFeed.getBoundingClientRect();
+        mouseX = Math.round(event.clientX - rect.left);
+        mouseY = Math.round(event.clientY - rect.top);
+    });
+
+    videoFeed.addEventListener("click", function (event) {
+        if (followMode) return;
+        const rect = this.getBoundingClientRect();
+        const x = Math.round(event.clientX - rect.left);
+        const y = Math.round(event.clientY - rect.top);
+        fetch("/click_target", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ x, y })
+        });
+    });
 
     setInterval(() => {
         if (!followMode || !isHovering || mouseX === null || mouseY === null) return;
