@@ -2,53 +2,62 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cat Detection Stream</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </head>
 
 <body>
   <div class="video-container">
-    <h1>Cat Detection System</h1>
+    <h1><i class="fas fa-video"></i> Cat Detection System</h1>
     <div id="video-wrapper">
       <div id="loading-spinner"></div>
-      <img id="video-feed" src="/video_feed" alt="Video Stream" onload="hideSpinner()">
+      <img id="video-feed" src="/video_feed" alt="Video Feed">
+      <div class="video-overlay" id="video-overlay">
+        <i class="fas fa-crosshairs"></i> Targeting...
+      </div>
     </div>
-    <button onclick="toggleFollowMode()" class="control-btn" id="follow-mode-btn">⚪ Mouse Follow OFF</button>
+    <div class="follow-controls">
+      <button onclick="toggleFollowMode()" class="control-btn follow-btn" id="follow-mode-btn"
+        title="Toggle real-time targeting using your mouse cursor over the video feed.">
+        <i class="fas fa-hand-pointer"></i> Manual Click Mode
+      </button>
+    </div>
   </div>
 
   <div class="control-panel">
-    <div class="system-status control-section">
-      <h2>System Status</h2>
-      <div class="status">Homing Status: <span id="homing-status" class="status-value">Not Complete</span></div>
-      <div class="status">Hall Sensor 1: <span id="sensor-status-1" class="status-value">-</span></div>
-      <div class="status">Hall Sensor 2: <span id="sensor-status-2" class="status-value">-</span></div>
-      <div class="status">CPU Temperature: <span id="cpu-temp" class="status-value">-</span></div>
+    <div class="control-section">
+      <h2><i class="fas fa-microchip"></i> System Status</h2>
+      <div class="status-item">Homing: <span id="homing-status" class="status-value">Not Complete</span></div>
+      <div class="status-item">Sensor 1: <span id="sensor-status-1" class="status-value">-</span></div>
+      <div class="status-item">Sensor 2: <span id="sensor-status-2" class="status-value">-</span></div>
+      <div class="status-item">CPU Temp: <span id="cpu-temp" class="status-value">-</span></div>
     </div>
 
-    <div class="controls control-section">
-      <h2>Controls</h2>
-      <button onclick="controlMotor('start')" class="control-btn" title="Starts automatic detection">
+    <div class="control-section">
+      <h2><i class="fas fa-sliders-h"></i> System Controls</h2>
+      <button onclick="controlMotor('start')" class="control-btn" title="Starts automatic cat detection">
         <i class="fas fa-play"></i> Start Auto Mode
       </button>
       <button onclick="controlMotor('stop')" class="control-btn stop-btn" title="Stops all motors">
-        <i class="fas fa-stop"></i> Stop All Motors
+        <i class="fas fa-stop"></i> Stop Motors
       </button>
-      <button onclick="toggleLaser()" class="control-btn" title="Toggle laser status">
+      <button onclick="toggleLaser()" class="control-btn" title="Toggle laser visibility">
         <i class="fas fa-lightbulb"></i> Toggle Laser
       </button>
-      <button onclick="shoot()" id="shoot-btn" class="control-btn danger-btn" title="Sprays water for 0.5 seconds">
-        <i class="fas fa-water"></i> Spray!
+      <button onclick="shoot()" id="shoot-btn" class="control-btn danger-btn" title="Fires a burst of water">
+        <i class="fas fa-water"></i> Spray
       </button>
-      <div class="status">Motor Status: <span id="motor-status" class="status-value">Idle</span></div>
-      <div class="status">Laser: <span id="laser-status" class="status-value">Off</span></div>
+      <div class="status-item">Motor: <span id="motor-status" class="status-value">Idle</span></div>
+      <div class="status-item">Laser: <span id="laser-status" class="status-value">Off</span></div>
     </div>
 
-    <div class="motor-control control-section">
-      <h2>Manual Motor Control</h2>
+    <div class="control-section">
+      <h2><i class="fas fa-cogs"></i> Manual Motor Control</h2>
       <div id="motor1-control">
         <h3>Motor 1</h3>
         <input type="range" id="motor1-slider" min="-180" max="180" value="0" step="5">
@@ -71,186 +80,6 @@
   <footer>
     &copy; 2025 Cat Defense Systems. All rights reserved.
   </footer>
-
-  <script>
-    function hideSpinner() {
-      const spinner = document.getElementById('loading-spinner');
-      const video = document.getElementById('video-feed');
-      spinner.style.display = 'none';
-      video.style.display = 'inline';
-    }
-
-    const targetPositions = { 1: 0, 2: 0 };
-    function debounce(func, wait) {
-      let timeout;
-      return function () {
-        const context = this, args = arguments;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(context, args), wait);
-      };
-    }
-
-    document.getElementById('motor1-slider').addEventListener('input', debounce(function () {
-      targetPositions[1] = parseInt(this.value);
-      document.getElementById('motor1-target').textContent = targetPositions[1] + '°';
-      moveMotor(1);
-    }, 25));
-
-    document.getElementById('motor2-slider').addEventListener('input', debounce(function () {
-      targetPositions[2] = parseInt(this.value);
-      document.getElementById('motor2-target').textContent = targetPositions[2] + '°';
-      moveMotor(2);
-    }, 25));
-
-    function moveMotor(motorNum) {
-      const position = targetPositions[motorNum];
-      fetch(`/set_motor_position?motor=${motorNum}&position=${position}`)
-        .then(r => r.json())
-        .then(data => console.log(`Motor ${motorNum} moving to ${position} degrees`));
-    }
-
-    function controlMotor(action) {
-      fetch('/motor_control?action=' + action)
-        .then(r => r.json())
-        .then(data => {
-          const statusElement = document.getElementById('motor-status');
-          statusElement.textContent = data.status;
-          statusElement.className = 'status-value ' + data.status;
-        });
-    }
-
-    function toggleLaser() {
-      fetch('/toggle_laser')
-        .then(r => r.json())
-        .then(data => {
-          const statusElement = document.getElementById('laser-status');
-          statusElement.textContent = data.status;
-          statusElement.className = 'status-value ' + data.status;
-        });
-    }
-
-    function shoot() {
-      const btn = document.getElementById('shoot-btn');
-      btn.disabled = true;
-      btn.textContent = "FIRING...";
-      fetch('/shoot')
-        .then(r => r.json())
-        .then(data => {
-          if (data.status === 'busy') {
-            btn.textContent = "BUSY (TRY AGAIN)";
-            setTimeout(() => {
-              btn.textContent = "Spray!";
-              btn.disabled = false;
-            }, 1000);
-          } else {
-            setTimeout(() => {
-              btn.textContent = "Spray!";
-              btn.disabled = false;
-            }, 500);
-          }
-        })
-        .catch(error => {
-          btn.textContent = "ERROR!";
-          console.error('Error:', error);
-          setTimeout(() => {
-            btn.textContent = "Spray!";
-            btn.disabled = false;
-          }, 1000);
-        });
-    }
-
-    // Hover + follow mode logic
-    const videoFeed = document.getElementById("video-feed");
-    let mouseX = null, mouseY = null;
-    let isHovering = false;
-    let followMode = false;
-    let lastSent = { x: null, y: null };
-
-    function toggleFollowMode() {
-      followMode = !followMode;
-      document.getElementById("follow-mode-btn").textContent = followMode ? "🟢 Mouse Follow ON" : "⚪ Mouse Follow OFF";
-    }
-
-    videoFeed.addEventListener("mouseenter", () => isHovering = true);
-    videoFeed.addEventListener("mouseleave", () => isHovering = false);
-
-    videoFeed.addEventListener("mousemove", (event) => {
-      const rect = videoFeed.getBoundingClientRect();
-      mouseX = Math.round(event.clientX - rect.left);
-      mouseY = Math.round(event.clientY - rect.top);
-    });
-
-    // Send hover data periodically
-    setInterval(() => {
-      if (!followMode || !isHovering || mouseX === null || mouseY === null) return;
-      if (mouseX === lastSent.x && mouseY === lastSent.y) return;
-
-      lastSent = { x: mouseX, y: mouseY };
-
-      fetch("/click_target", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ x: mouseX, y: mouseY })
-      });
-    }, 50);
-
-    // Fallback: Click to aim when follow mode is off
-    videoFeed.addEventListener("click", function (event) {
-      if (followMode) return;
-      const rect = this.getBoundingClientRect();
-      const x = Math.round(event.clientX - rect.left);
-      const y = Math.round(event.clientY - rect.top);
-
-      fetch("/click_target", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ x, y })
-      });
-    });
-
-    function updateStatus() {
-      fetch('/homing_status')
-        .then(r => r.json())
-        .then(data => {
-          const statusElement = document.getElementById('homing-status');
-          statusElement.textContent = data.complete ? "Complete" : "In Progress";
-          statusElement.className = 'status-value ' + (data.complete ? 'Complete' : 'InProgress');
-        });
-
-      fetch('/sensor_status/1').then(r => r.text()).then(t => {
-        document.getElementById('sensor-status-1').textContent = t;
-      });
-
-      fetch('/sensor_status/2').then(r => r.text()).then(t => {
-        document.getElementById('sensor-status-2').textContent = t;
-      });
-
-      fetch('/get_motor_positions')
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById('motor1-pos').textContent = data.motor1.toFixed(2) + '°';
-          document.getElementById('motor2-pos').textContent = data.motor2.toFixed(2) + '°';
-        });
-
-      fetch('/get_cpu_temp')
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById('cpu-temp').textContent = data.temp + '°C';
-        });
-
-      setTimeout(updateStatus, 500);
-    }
-
-    updateStatus();
-
-    setInterval(() => {
-      const video = document.getElementById('video-feed');
-      if (video.naturalWidth === 0) {
-        video.style.display = 'none';
-        document.getElementById('loading-spinner').style.display = 'block';
-        video.src = '/video_feed?' + Date.now();
-      }
-    }, 2000);
-  </script>
 </body>
+
 </html>
