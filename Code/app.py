@@ -27,6 +27,8 @@ def index():
 
 @app.route('/set_motor_position')
 def set_motor_position():
+    if not homing_complete:
+        return jsonify({'error': 'Homing not complete'}), 400
     motor_num = request.args.get('motor', type=int)
     position_deg = request.args.get('position', type=float)
 
