@@ -1,3 +1,4 @@
+# app.py
 import time
 import threading
 from flask import Flask, render_template, Response, request, jsonify
@@ -5,6 +6,9 @@ from camera import generate_frames, capture_and_process, frame_lock, frame_avail
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from utils import get_cpu_temp, register_shutdown
+import joblib
+import numpy as np
+
 
 app = Flask(__name__)
 
@@ -12,9 +16,14 @@ motor_active = False
 homing_complete = False
 water_gun_active = False
 
+# Load pixel-to-angle model
+model = joblib.load('model.pkl')
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/set_motor_position')
 def set_motor_position():
@@ -30,15 +39,46 @@ def set_motor_position():
 
     return jsonify({'status': f'Motor {motor_num} moving to {position_deg} degrees'})
 
+
+@app.route('/click_target', methods=['POST'])
+def click_target():
+    data = request.get_json()
+    x = data.get('x')
+    y = data.get('y')
+
+    if x is None or y is None:
+        return jsonify({'error': 'Missing pixel coordinates'}), 400
+
+    # Predict angles using trained model
+    theta1, theta2 = model.predict([[x, y]])[0]
+
+    # Move motors to predicted positions
+    steps1 = int(theta1 / DEGREES_PER_STEP_1)
+    steps2 = int(theta2 / DEGREES_PER_STEP_2)
+
+    Motor1.move_to(steps1)
+    Motor2.move_to(steps2)
+
+    return jsonify({
+        'theta1': round(theta1, 2),
+        'theta2': round(theta2, 2),
+        'steps1': steps1,
+        'steps2': steps2,
+        'status': 'moving'
+    })
+
+
 @app.route('/get_motor_positions')
 def get_motor_positions():
     motor1_deg = Motor1.current_position() * DEGREES_PER_STEP_1
     motor2_deg = Motor2.current_position() * DEGREES_PER_STEP_2
     return jsonify({'motor1': motor1_deg, 'motor2': motor2_deg})
 
+
 @app.route('/get_cpu_temp')
 def get_cpu_temp_route():
     return jsonify({'temp': get_cpu_temp()})
+
 
 @app.route('/shoot')
 def shoot():
@@ -58,6 +98,7 @@ def shoot():
     threading.Thread(target=turn_off).start()
     return jsonify({'status': 'fired'}), 200
 
+
 @app.route('/toggle_laser')
 def toggle_laser():
     if laser_pin.value:
@@ -68,9 +109,11 @@ def toggle_laser():
         status = "On"
     return jsonify({'status': status})
 
+
 @app.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 @app.route('/sensor_status/<int:sensor_num>')
 def sensor_status(sensor_num):
@@ -79,9 +122,11 @@ def sensor_status(sensor_num):
     else:
         return "Detected!" if not hall_sensor_2.value else "Not detected"
 
+
 @app.route('/homing_status')
 def homing_status():
     return jsonify({'complete': homing_complete})
+
 
 @app.route('/motor_control')
 def motor_control():
@@ -98,6 +143,7 @@ def motor_control():
         return jsonify({'status': 'Stopped'})
     else:
         return jsonify({'status': 'Not ready' if not homing_complete else 'Unknown command'})
+
 
 def motor_loop():
     global homing_complete
@@ -117,6 +163,7 @@ def motor_loop():
         Motor2.run()
         time.sleep(0.001)
 
+
 def fan_loop():
     while True:
         cpu_temp = get_cpu_temp()
@@ -125,6 +172,7 @@ def fan_loop():
         elif cpu_temp < 72:
             fan_pin.off()
         time.sleep(1)
+
 
 if __name__ == '__main__':
     register_shutdown()
