@@ -1,5 +1,7 @@
+# motors.py
 import time
 from AccelStepper import AccelStepper, DRIVER
+import os
 from hardware import hall_sensor_1, hall_sensor_2
 
 # Constants
