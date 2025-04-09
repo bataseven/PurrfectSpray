@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
+
 <body>
   <div class="video-container">
     <h1>Cat Detection System</h1>
@@ -15,6 +17,7 @@
       <div id="loading-spinner"></div>
       <img id="video-feed" src="/video_feed" alt="Video Stream" onload="hideSpinner()">
     </div>
+    <button onclick="toggleFollowMode()" class="control-btn" id="follow-mode-btn">⚪ Mouse Follow OFF</button>
   </div>
 
   <div class="control-panel">
@@ -77,23 +80,23 @@
       video.style.display = 'inline';
     }
 
-    const targetPositions = {1: 0, 2: 0};
+    const targetPositions = { 1: 0, 2: 0 };
     function debounce(func, wait) {
       let timeout;
-      return function() {
+      return function () {
         const context = this, args = arguments;
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(context, args), wait);
       };
     }
 
-    document.getElementById('motor1-slider').addEventListener('input', debounce(function() {
+    document.getElementById('motor1-slider').addEventListener('input', debounce(function () {
       targetPositions[1] = parseInt(this.value);
       document.getElementById('motor1-target').textContent = targetPositions[1] + '°';
       moveMotor(1);
     }, 25));
 
-    document.getElementById('motor2-slider').addEventListener('input', debounce(function() {
+    document.getElementById('motor2-slider').addEventListener('input', debounce(function () {
       targetPositions[2] = parseInt(this.value);
       document.getElementById('motor2-target').textContent = targetPositions[2] + '°';
       moveMotor(2);
@@ -155,6 +158,55 @@
           }, 1000);
         });
     }
+
+    // Hover + follow mode logic
+    const videoFeed = document.getElementById("video-feed");
+    let mouseX = null, mouseY = null;
+    let isHovering = false;
+    let followMode = false;
+    let lastSent = { x: null, y: null };
+
+    function toggleFollowMode() {
+      followMode = !followMode;
+      document.getElementById("follow-mode-btn").textContent = followMode ? "🟢 Mouse Follow ON" : "⚪ Mouse Follow OFF";
+    }
+
+    videoFeed.addEventListener("mouseenter", () => isHovering = true);
+    videoFeed.addEventListener("mouseleave", () => isHovering = false);
+
+    videoFeed.addEventListener("mousemove", (event) => {
+      const rect = videoFeed.getBoundingClientRect();
+      mouseX = Math.round(event.clientX - rect.left);
+      mouseY = Math.round(event.clientY - rect.top);
+    });
+
+    // Send hover data periodically
+    setInterval(() => {
+      if (!followMode || !isHovering || mouseX === null || mouseY === null) return;
+      if (mouseX === lastSent.x && mouseY === lastSent.y) return;
+
+      lastSent = { x: mouseX, y: mouseY };
+
+      fetch("/click_target", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x: mouseX, y: mouseY })
+      });
+    }, 50);
+
+    // Fallback: Click to aim when follow mode is off
+    videoFeed.addEventListener("click", function (event) {
+      if (followMode) return;
+      const rect = this.getBoundingClientRect();
+      const x = Math.round(event.clientX - rect.left);
+      const y = Math.round(event.clientY - rect.top);
+
+      fetch("/click_target", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x, y })
+      });
+    });
 
     function updateStatus() {
       fetch('/homing_status')
