@@ -8,6 +8,8 @@ import time
 import io
 import os
 import logging
+import signal
+import sys
 from AccelStepper import AccelStepper, DRIVER
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -149,15 +151,20 @@ def homing_procedure():
 
 
 def generate_frames():
-    """Generate frames with bounding boxes for streaming"""
+    """Stream frames at up to 20 FPS, even if no new frame is available"""
     while True:
-        frame_available.wait()
+        got_frame = frame_available.wait(timeout=0.1)
         with frame_lock:
+            if latest_frame is None:
+                continue  # wait until a frame is available at least once
             ret, buffer = cv2.imencode('.jpg', latest_frame)
             frame = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        frame_available.clear()
+        if got_frame:
+            frame_available.clear()
+        time.sleep(1 / 30.0)  # Cap FPS
+
 
 # [Previous imports and setup remain the same until the index() function]
 
@@ -282,7 +289,7 @@ def fan_loop():
     while True:
         cpu_temp = os.popen("vcgencmd measure_temp").readline()
         cpu_temp = float(cpu_temp.replace("temp=", "").replace("'C", ""))
-        if cpu_temp > 78:
+        if cpu_temp > 76:
             fan_pin.on()
         elif cpu_temp < 72:
             fan_pin.off()
@@ -357,6 +364,20 @@ def capture_and_process():
         Motor1.disable_outputs()
         Motor2.disable_outputs()
 
+
+def graceful_exit(signum, frame):
+    print("Shutting down cleanly...")
+    fan_pin.off()
+    laser_pin.off()
+    water_gun_pin.off()
+    Motor1.disable_outputs()
+    Motor2.disable_outputs()
+    hall_sensor_1.close()
+    hall_sensor_2.close()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, graceful_exit)
+signal.signal(signal.SIGTERM, graceful_exit)
 
 if __name__ == '__main__':
     # Start the capture thread
