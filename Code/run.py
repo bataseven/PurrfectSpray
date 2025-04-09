@@ -23,6 +23,9 @@ MICROSTEPS_2 = 1/4  # Microsteps for the stepper driver (Motor 2)
 DEGREES_PER_STEP_1 = 360 / STEPS_PER_REV * MICROSTEPS_1 * GEAR_RATIO_1
 DEGREES_PER_STEP_2 = 360 / STEPS_PER_REV * MICROSTEPS_2 * GEAR_RATIO_2
 
+STEPPER_MAX_SPEED = 8000  # Max speed in steps per second
+STEPPER_ACCELERATION = 20000  # Acceleration in steps per second^2
+
 # GPIO setup for hall effect sensors
 HALL_SENSOR_PIN_1 = 6  # For Motor 1
 HALL_SENSOR_PIN_2 = 26  # For Motor 2
@@ -43,6 +46,10 @@ picam2 = Picamera2()
 picam2.configure(picam2.create_preview_configuration(
     main={"format": 'XRGB8888', "size": (640, 480)}))
 net = cv2.dnn.readNetFromCaffe(model_config, model_weights)
+
+fan_pin = OutputDevice(11, active_high=True, initial_value=True)
+laser_pin = OutputDevice(0, active_high=True, initial_value=False)
+water_gun_pin = OutputDevice(1, active_high=True, initial_value=False)
 
 # Initialize stepper motors
 Motor1 = AccelStepper(DRIVER, 19, 13, None, None, True)
@@ -121,11 +128,6 @@ def home_motor(motor, hall_sensor, motor_num):
     motor.set_current_position(0)
     print(f"Motor {motor_num} homing complete. New zero position set.")
 
-    # Reset to operational speed
-    motor.set_max_speed(6000)
-    motor.set_acceleration(18000)
-
-
 def homing_procedure():
     """Perform homing for both motors"""
     global homing_complete
@@ -137,10 +139,10 @@ def homing_procedure():
     home_motor(Motor2, hall_sensor_2, 2)
 
     # Reset motor parameters to operational values
-    Motor1.set_max_speed(3000)
-    Motor1.set_acceleration(3000)
-    Motor2.set_max_speed(3000)
-    Motor2.set_acceleration(3000)
+    Motor1.set_max_speed(STEPPER_MAX_SPEED)
+    Motor1.set_acceleration(STEPPER_ACCELERATION)
+    Motor2.set_max_speed(STEPPER_MAX_SPEED)
+    Motor2.set_acceleration(STEPPER_ACCELERATION)
 
     homing_complete = True
     print("Homing procedure complete for both motors")
@@ -189,6 +191,54 @@ def get_motor_positions():
         'motor2': motor2_deg
     })
 
+# Cpu temp
+@app.route('/get_cpu_temp')
+def get_cpu_temp():
+    """Get CPU temperature"""
+    temp = os.popen("vcgencmd measure_temp").readline()
+    temp = temp.replace("temp=", "").replace("'C", "")
+    return jsonify({'temp': temp})
+
+
+# Add this global variable at the top with your other globals
+water_gun_active = False
+
+# Shoot water gun
+@app.route('/shoot')
+def shoot():
+    """Activate water gun for 0.5 seconds without blocking, ignoring multiple calls"""
+    global water_gun_active
+    
+    if water_gun_active:
+        return jsonify({'status': 'busy'}), 200
+    
+    water_gun_active = True
+    water_gun_pin.on()
+    
+    def turn_off():
+        global water_gun_active
+        time.sleep(0.5)
+        water_gun_pin.off()
+        water_gun_active = False
+    
+    threading.Thread(target=turn_off).start()
+    
+    return jsonify({'status': 'fired'}), 200
+
+# Toggle laser
+@app.route('/toggle_laser')
+def toggle_laser():
+    """Toggle laser on/off"""
+    # Turn it on if it's off, and off if it's on
+    if laser_pin.value:
+        laser_pin.off()
+        status = "Off"
+    else:
+        laser_pin.on()
+        status = "On"
+    return jsonify({'status': status})
+
+
 # [Rest of your existing code remains unchanged]
 
 
@@ -226,8 +276,20 @@ def motor_control():
     else:
         return jsonify({'status': 'Not ready' if not homing_complete else 'Unknown command'})
 
+# if cpu temp > 80, start fan, if <70 stop fan
+def fan_loop():
+    """Fan control loop based on CPU temperature"""
+    while True:
+        cpu_temp = os.popen("vcgencmd measure_temp").readline()
+        cpu_temp = float(cpu_temp.replace("temp=", "").replace("'C", ""))
+        if cpu_temp > 78:
+            fan_pin.on()
+        elif cpu_temp < 72:
+            fan_pin.off()
+        time.sleep(1)  # Check every second
 
 def motor_loop():
+
     """Main motor control loop"""
     # First perform homing
     homing_procedure()
@@ -291,6 +353,7 @@ def capture_and_process():
         picam2.stop()
         hall_sensor_1.close()
         hall_sensor_2.close()
+        fan_pin.off()
         Motor1.disable_outputs()
         Motor2.disable_outputs()
 
@@ -305,6 +368,11 @@ if __name__ == '__main__':
     motor_thread = threading.Thread(target=motor_loop)
     motor_thread.daemon = True
     motor_thread.start()
+
+    # Start the fan control thread
+    fan_thread = threading.Thread(target=fan_loop)
+    fan_thread.daemon = True
+    fan_thread.start()
 
     # Start the Flask server
     app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)

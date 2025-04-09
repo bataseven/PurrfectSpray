@@ -1,5 +1,3 @@
-<!-- Index.html -->
-
 <html>
   <head>
     <title>Cat Detection Stream</title>
@@ -37,13 +35,18 @@
           <div class="status">Homing Status: <span id="homing-status">Not Complete</span></div>
           <div class="status">Hall Sensor 1: <span id="sensor-status-1">-</span></div>
           <div class="status">Hall Sensor 2: <span id="sensor-status-2">-</span></div>
+          <div class="status">CPU Temperature: <span id="cpu-temp">-</span></div>
         </div>
         
         <div class="control-section">
-          <h2>Auto Movement</h2>
+          <h2>Controls</h2>
           <button onclick="controlMotor('start')">Start Auto Mode</button>
           <button onclick="controlMotor('stop')">Stop All Motors</button>
+          <button onclick="toggleLaser()">Toggle Laser</button>
+          <button onclick="shoot()">SHOOT!</button>
+
           <div class="status">Motor Status: <span id="motor-status">Idle</span></div>
+          <div class="status">Laser: <span id="laser-status">Off</span></div>
         </div>
       </div>
 
@@ -57,7 +60,6 @@
             <span>Current: <span class="current-value" id="motor1-pos">0°</span></span>
             <span>Target: <span class="target-value" id="motor1-target">0°</span></span>
           </div>
-          <button onclick="moveMotor(1)">Move Motor 1</button>
         </div>
         
         <div class="control-section" id="motor2-control">
@@ -67,7 +69,6 @@
             <span>Current: <span class="current-value" id="motor2-pos">0°</span></span>
             <span>Target: <span class="target-value" id="motor2-target">0°</span></span>
           </div>
-          <button onclick="moveMotor(2)">Move Motor 2</button>
         </div>
       </div>
     </div>
@@ -76,18 +77,30 @@
       // Track target positions in degrees
       const targetPositions = {1: 0, 2: 0};
       
-      // Update target positions when sliders move
-      document.getElementById('motor1-slider').addEventListener('input', function() {
+      // Debounce function to prevent too many rapid requests
+      function debounce(func, wait) {
+        let timeout;
+        return function() {
+          const context = this, args = arguments;
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+      }
+      
+      // Update target positions and move motors when sliders change
+      document.getElementById('motor1-slider').addEventListener('input', debounce(function() {
         targetPositions[1] = parseInt(this.value);
         document.getElementById('motor1-target').textContent = targetPositions[1] + '°';
-      });
+        moveMotor(1);
+      }, 25));  // 25ms debounce delay
       
-      document.getElementById('motor2-slider').addEventListener('input', function() {
+      document.getElementById('motor2-slider').addEventListener('input', debounce(function() {
         targetPositions[2] = parseInt(this.value);
         document.getElementById('motor2-target').textContent = targetPositions[2] + '°';
-      });
+        moveMotor(2);
+      }, 25));  // 25ms debounce delay
 
-      // Motor control functions
+      // Motor control function
       function moveMotor(motorNum) {
         const position = targetPositions[motorNum];
         fetch(`/set_motor_position?motor=${motorNum}&position=${position}`)
@@ -100,6 +113,14 @@
           .then(r => r.json())
           .then(data => {
             document.getElementById('motor-status').textContent = data.status;
+          });
+      }
+
+      function toggleLaser() {
+        fetch('/toggle_laser')
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('laser-status').textContent = data.status;
           });
       }
       
@@ -128,9 +149,32 @@
             document.getElementById('motor1-pos').textContent = data.motor1.toFixed(2) + '°';
             document.getElementById('motor2-pos').textContent = data.motor2.toFixed(2) + '°';
           });
+
+        // Get cpu temperature
+        fetch('/get_cpu_temp')
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('cpu-temp').textContent = data.temp + '°C';
+          });
         
         setTimeout(updateStatus, 500);
       }
+
+      function shoot() {
+        fetch('/shoot')
+            .then(r => r.json())
+            .then(data => {
+                // Optional: Update UI based on status if needed
+                if (data.status === 'busy') {
+                    console.log('Water gun is already active');
+                } else if (data.status === 'fired') {
+                    console.log('Water gun activated');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    }
       
       // Initialize
       updateStatus();
