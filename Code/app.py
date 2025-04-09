@@ -44,6 +44,8 @@ def set_motor_position():
 
 @app.route('/click_target', methods=['POST'])
 def click_target():
+    if not homing_complete:
+        return jsonify({'error': 'Homing not complete'}), 400
     data = request.get_json()
     x = data.get('x')
     y = data.get('y')

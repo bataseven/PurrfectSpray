@@ -6,9 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cat Detection Stream</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 </head>
 
 <body>
@@ -22,7 +21,7 @@
       </div>
     </div>
     <div class="follow-controls">
-      <button onclick="toggleFollowMode()" class="control-btn follow-btn" id="follow-mode-btn"
+      <button class="control-btn follow-btn" id="follow-mode-btn"
         title="Toggle real-time targeting using your mouse cursor over the video feed.">
         <i class="fas fa-hand-pointer"></i> Manual Click Mode
       </button>
@@ -30,6 +29,8 @@
   </div>
 
   <div class="control-panel">
+
+    <!-- System Status -->
     <div class="control-section">
       <h2><i class="fas fa-microchip"></i> System Status</h2>
       <div class="status-item">Homing: <span id="homing-status" class="status-value">Not Complete</span></div>
@@ -38,26 +39,34 @@
       <div class="status-item">CPU Temp: <span id="cpu-temp" class="status-value">-</span></div>
     </div>
 
+    <!-- System Controls -->
     <div class="control-section">
       <h2><i class="fas fa-sliders-h"></i> System Controls</h2>
-      <button onclick="controlMotor('start')" class="control-btn" title="Starts automatic cat detection">
+
+      <button class="control-btn" id="start-btn" title="Starts automatic cat detection">
         <i class="fas fa-play"></i> Start Auto Mode
       </button>
-      <button onclick="controlMotor('stop')" class="control-btn stop-btn" title="Stops all motors">
+
+      <button class="control-btn stop-btn" id="stop-btn" title="Stops all motors">
         <i class="fas fa-stop"></i> Stop Motors
       </button>
-      <button onclick="toggleLaser()" class="control-btn" title="Toggle laser visibility">
+
+      <button class="control-btn" id="laser-btn" title="Toggle laser visibility">
         <i class="fas fa-lightbulb"></i> Toggle Laser
       </button>
-      <button onclick="shoot()" id="shoot-btn" class="control-btn danger-btn" title="Fires a burst of water">
+
+      <button id="shoot-btn" class="control-btn danger-btn" title="Fires a burst of water">
         <i class="fas fa-water"></i> Spray
       </button>
+
       <div class="status-item">Motor: <span id="motor-status" class="status-value">Idle</span></div>
       <div class="status-item">Laser: <span id="laser-status" class="status-value">Off</span></div>
     </div>
 
+    <!-- Manual Motor Control -->
     <div class="control-section">
       <h2><i class="fas fa-cogs"></i> Manual Motor Control</h2>
+
       <div id="motor1-control">
         <h3>Motor 1</h3>
         <input type="range" id="motor1-slider" min="-180" max="180" value="0" step="5">
@@ -66,6 +75,7 @@
           <span>Target: <span class="target-value" id="motor1-target">0°</span></span>
         </div>
       </div>
+
       <div id="motor2-control">
         <h3>Motor 2</h3>
         <input type="range" id="motor2-slider" min="-180" max="180" value="0" step="5">
@@ -75,11 +85,14 @@
         </div>
       </div>
     </div>
-  </div>
+
+  </div> <!-- close control-panel -->
 
   <footer>
     &copy; 2025 Cat Defense Systems. All rights reserved.
   </footer>
+
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 
 </html>
