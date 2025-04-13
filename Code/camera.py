@@ -30,34 +30,53 @@ class_labels_path = os.path.join(script_dir, "model", "labelmap_voc.prototxt")
 
 try:
     picam2 = Picamera2()
-    picam2.configure(picam2.create_preview_configuration(main={"format": 'XRGB8888', "size": (1920, 1080)}))
+    picam2.configure(picam2.create_preview_configuration(main={"format": 'XRGB8888', "size": (1280, 720)}))
     picam2.start()
 except Exception as e:
     logger.exception("Failed to initialize camera")
     raise RuntimeError("Camera initialization failed") from e
 
+detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3)
 # detector = MobileNetDetector()
-detector = YoloV5Detector(model_name='yolov5s', conf_threshold=0.5)
 
 frame_lock = Lock()
 frame_available = Event()
 latest_frame = None
-
 def capture_and_process():
+    frame_count = 0
+    start_time = time.time()
+    last_fps_time = time.time()
+    end_time = time.time()
     global latest_frame
+    fps = 0
+    DETECTION_INTERVAL = 3
+    detections = []
 
     while True:
         try:
             frame = picam2.capture_array()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
 
-            detections = detector.detect(frame)
+            # Resize frame for processing 1/3 the size of current frame
+            small = cv2.resize(frame, (0, 0), fx=1/2, fy=1/2)
+            frame_count += 1
+            
+            if frame_count % DETECTION_INTERVAL == 0:
+                detections = detector.detect(frame)
+                
+                current_time = time.time()
+                elapsed = current_time - last_fps_time 
+                fps = DETECTION_INTERVAL / elapsed if elapsed > 0 else 0
+                last_fps_time = current_time
 
             for det in detections:
                 startX, startY, endX, endY = det.box
-                cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
-                cv2.putText(frame, f"{det.label}: {det.class_id}", (startX, startY - 15),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                # Put a different color rectangle around the detected object
+                color = (0, 255, 0) if det.class_id == 15 else (255, 0, 0)
+                cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
+                label = f"{det.label}: {det.confidence:.2f}"
+                cv2.putText(frame, label, (startX, startY - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
                 if det.class_id == 15:  # Person class
                     target_x = int((startX + endX) / 2)
@@ -65,6 +84,11 @@ def capture_and_process():
                     cv2.circle(frame, (target_x, target_y), 5, (255, 0, 0), -1)
                     cv2.putText(frame, "Target", (target_x, target_y - 15),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                    
+            fps = 1 / elapsed if elapsed > 0 else 0
+                
+            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
             with frame_lock:
                 latest_frame = frame.copy()
