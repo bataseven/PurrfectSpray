@@ -178,11 +178,14 @@ def fan_loop():
         time.sleep(1)
 
 
-if __name__ == '__main__':
+def start_background_threads():
     register_shutdown()
-
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=motor_loop, daemon=True).start()
     threading.Thread(target=fan_loop, daemon=True).start()
 
+
+start_background_threads()  # Run regardless of how app is launched
+
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)
