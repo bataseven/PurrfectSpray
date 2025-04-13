@@ -10,6 +10,21 @@ from utils import get_cpu_temp, register_shutdown
 import joblib
 import numpy as np
 import os
+import logging
+from logging.handlers import RotatingFileHandler
+
+logger = logging.getLogger("App")
+logger.setLevel(logging.INFO)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+logger.addHandler(console_handler)
+
+# Rotating file handler (max 512 KB per file, keep 3 backups)
+file_handler = RotatingFileHandler("app.log", maxBytes=512*1024, backupCount=3)
+file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+logger.addHandler(file_handler)
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
@@ -18,10 +33,11 @@ motor_active = False
 homing_complete = False
 water_gun_active = False
 
-
 script_dir = os.path.dirname(os.path.realpath(__file__))
 model_path = os.path.join(script_dir, 'model.pkl')
 model = joblib.load(model_path)
+
+
 
 
 @app.route('/')
@@ -123,43 +139,58 @@ def handle_motor_control(data):
 
 def motor_loop():
     global homing_complete
-    homing_procedure()
-    homing_complete = True
-    while True:
-        if motor_active and homing_complete:
-            if abs(Motor1.current_position()) < 100:
-                Motor1.move(1000)
-            else:
-                Motor1.move(-1000)
-            if abs(Motor2.current_position()) < 200:
-                Motor2.move(2000)
-            else:
-                Motor2.move(-2000)
-        Motor1.run()
-        Motor2.run()
-        time.sleep(0.001)
+    try:
+        logger.info("Starting homing procedure")
+        homing_procedure()
+        homing_complete = True
+        logger.info("Homing complete")
+
+        while True:
+            if motor_active and homing_complete:
+                if abs(Motor1.current_position()) < 100:
+                    Motor1.move(1000)
+                else:
+                    Motor1.move(-1000)
+                if abs(Motor2.current_position()) < 200:
+                    Motor2.move(2000)
+                else:
+                    Motor2.move(-2000)
+            Motor1.run()
+            Motor2.run()
+            time.sleep(0.001)
+
+    except Exception as e:
+        logger.exception("Error in motor_loop")
 
 def fan_loop():
-    while True:
-        cpu_temp = get_cpu_temp()
-        if cpu_temp > 76:
-            fan_pin.on()
-        elif cpu_temp < 72:
-            fan_pin.off()
-        time.sleep(1)
+    try:
+        while True:
+            cpu_temp = get_cpu_temp()
+            if cpu_temp > 76:
+                fan_pin.on()
+            elif cpu_temp < 72:
+                fan_pin.off()
+            time.sleep(1)
+    except Exception as e:
+        logger.exception("Error in fan_loop")
+
 
 def status_broadcast_loop():
-    while True:
-        socketio.emit('status_update', {
-            'motor1': Motor1.current_position() * DEGREES_PER_STEP_1,
-            'motor2': Motor2.current_position() * DEGREES_PER_STEP_2,
-            'cpu_temp': get_cpu_temp(),
-            'laser': laser_pin.value,
-            'homing': homing_complete,
-            'sensor1': not hall_sensor_1.value,
-            'sensor2': not hall_sensor_2.value
-        })
-        time.sleep(0.5)
+    try:
+        while True:
+            socketio.emit('status_update', {
+                'motor1': Motor1.current_position() * DEGREES_PER_STEP_1,
+                'motor2': Motor2.current_position() * DEGREES_PER_STEP_2,
+                'cpu_temp': get_cpu_temp(),
+                'laser': laser_pin.value,
+                'homing': homing_complete,
+                'sensor1': not hall_sensor_1.value,
+                'sensor2': not hall_sensor_2.value
+            })
+            time.sleep(0.5)
+    except Exception as e:
+        logger.exception("Error in status_broadcast_loop")
+
 
 def start_background_threads():
     register_shutdown()
