@@ -63,12 +63,22 @@ def handle_set_motor_position(data):
         return
     motor_num = data.get('motor')
     position_deg = data.get('position')
+
     if motor_num == 1:
-        steps = int(position_deg / DEGREES_PER_STEP_1)
-        Motor1.move_to(steps)
+        current_deg = Motor1.current_position() * DEGREES_PER_STEP_1
+        target_deg = position_deg
+        delta = target_deg - current_deg
+        if abs(delta) < 1:
+            return  # skip tiny moves
+        Motor1.move_to(int(target_deg / DEGREES_PER_STEP_1))
+
     elif motor_num == 2:
-        steps = int(position_deg / DEGREES_PER_STEP_2)
-        Motor2.move_to(steps)
+        current_deg = Motor2.current_position() * DEGREES_PER_STEP_2
+        target_deg = position_deg
+        delta = target_deg - current_deg
+        if abs(delta) < 1:
+            return
+        Motor2.move_to(int(target_deg / DEGREES_PER_STEP_2))
 
 
 @socketio.on('toggle_laser')
