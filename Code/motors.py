@@ -68,10 +68,17 @@ def home_motor(motor, hall_sensor, motor_num):
     motor.set_current_position(0)
     print(f"Motor {motor_num} homing complete. New zero position set.")
 
+import logging
+logger = logging.getLogger("App")  # reuse app logger if shared context
+
 def homing_procedure():
-    home_motor(Motor1, hall_sensor_1, 1)
-    home_motor(Motor2, hall_sensor_2, 2)
-    Motor1.set_max_speed(STEPPER_MAX_SPEED)
-    Motor1.set_acceleration(STEPPER_ACCELERATION)
-    Motor2.set_max_speed(STEPPER_MAX_SPEED)
-    Motor2.set_acceleration(STEPPER_ACCELERATION)
+    try:
+        home_motor(Motor1, hall_sensor_1, 1)
+        home_motor(Motor2, hall_sensor_2, 2)
+        Motor1.set_max_speed(STEPPER_MAX_SPEED)
+        Motor1.set_acceleration(STEPPER_ACCELERATION)
+        Motor2.set_max_speed(STEPPER_MAX_SPEED)
+        Motor2.set_acceleration(STEPPER_ACCELERATION)
+        logger.info("Homing procedure complete and speed limits set")
+    except Exception as e:
+        logger.exception("Error during homing_procedure")
