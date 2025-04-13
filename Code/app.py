@@ -8,7 +8,7 @@ from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sens
 from utils import get_cpu_temp, register_shutdown
 import joblib
 import numpy as np
-
+import os
 
 app = Flask(__name__)
 
@@ -16,9 +16,9 @@ motor_active = False
 homing_complete = False
 water_gun_active = False
 
-# Load pixel-to-angle model
-model = joblib.load('model.pkl')
-
+script_dir = os.path.dirname(os.path.realpath(__file__))
+model_path = os.path.join(script_dir, '..', 'model.pkl')
+model = joblib.load(model_path)
 
 @app.route('/')
 def index():
