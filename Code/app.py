@@ -7,7 +7,7 @@ from flask_socketio import SocketIO, emit
 from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
-from utils import get_cpu_temp, register_shutdown
+from app_utils import get_cpu_temp, register_shutdown
 import joblib
 import numpy as np
 import os
