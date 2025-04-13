@@ -8,7 +8,7 @@ from picamera2 import Picamera2
 import time
 import logging
 from logging.handlers import RotatingFileHandler
-from detectors import MobileNetDetector
+from detectors import MobileNetDetector, YoloV5Detector
 
 
 logger = logging.getLogger("Camera")
@@ -36,7 +36,8 @@ except Exception as e:
     logger.exception("Failed to initialize camera")
     raise RuntimeError("Camera initialization failed") from e
 
-detector = MobileNetDetector()
+# detector = MobileNetDetector()
+detector = YoloV5Detector(model_name='yolov5s', conf_threshold=0.5)
 
 frame_lock = Lock()
 frame_available = Event()

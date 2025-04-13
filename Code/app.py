@@ -1,4 +1,5 @@
-# --- Final app.py with Flask-SocketIO in threading mode ---
+#!/home/berke/yolo-env/bin/python
+
 import time
 import threading
 from flask import Flask, render_template, Response, request, jsonify
