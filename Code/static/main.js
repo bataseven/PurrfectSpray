@@ -11,13 +11,24 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("video-feed").onload = hideSpinner;
 
     document.getElementById("follow-mode-btn").addEventListener("click", () => {
-        followMode = !followMode;
         const btn = document.getElementById("follow-mode-btn");
-        btn.innerHTML = followMode
-            ? '<i class="fas fa-mouse-pointer"></i> Follow Mode (ON)'
-            : '<i class="fas fa-hand-pointer"></i> Manual Click Mode';
-        document.getElementById("video-overlay").style.display = followMode ? "block" : "none";
+    
+        if (!followMode) {
+            // Activating follow mode
+            followMode = false; // temporarily block
+            document.getElementById("video-overlay").style.display = "block";
+            btn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Follow Mode (ON)';
+            setTimeout(() => {
+                followMode = true;
+            }, 500); // wait 0.5 second before enabling
+        } else {
+            // Turning off follow mode
+            followMode = false;
+            document.getElementById("video-overlay").style.display = "none";
+            btn.innerHTML = '<i class="fas fa-hand-pointer"></i> Manual Click Mode';
+        }
     });
+    
 
     document.getElementById("start-btn").addEventListener("click", () => socket.emit("motor_control", { action: "start" }));
     document.getElementById("stop-btn").addEventListener("click", () => socket.emit("motor_control", { action: "stop" }));
@@ -60,19 +71,27 @@ document.addEventListener("DOMContentLoaded", function () {
         }, 1000);
     });
 
-    document.getElementById("motor1-slider").addEventListener("input", debounce(function () {
+    let motorThrottle = { 1: 0, 2: 0 };
+
+    function emitMotorUpdate(motorNum, deg) {
+        if (Date.now() - motorThrottle[motorNum] < 50) return; // Throttle to 20Hz
+        motorThrottle[motorNum] = Date.now();
+        socket.emit("set_motor_position", { motor: motorNum, position: deg });
+    }
+    
+    document.getElementById("motor1-slider").addEventListener("input", function () {
         const deg = parseInt(this.value);
         targetPositions[1] = deg;
         document.getElementById("motor1-target").textContent = deg + "°";
-        socket.emit("set_motor_position", { motor: 1, position: deg });
-    }, 25));
+        emitMotorUpdate(1, deg);
+    });
     
-    document.getElementById("motor2-slider").addEventListener("input", debounce(function () {
+    document.getElementById("motor2-slider").addEventListener("input", function () {
         const deg = parseInt(this.value);
         targetPositions[2] = deg;
         document.getElementById("motor2-target").textContent = deg + "°";
-        socket.emit("set_motor_position", { motor: 2, position: deg });
-    }, 25));    
+        emitMotorUpdate(2, deg);
+    });
 
     function debounce(func, wait) {
         let timeout;
@@ -92,13 +111,27 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     document.getElementById("video-feed").addEventListener("click", function (event) {
-        if (followMode) return;
         const rect = this.getBoundingClientRect();
         const x = Math.round(event.clientX - rect.left);
         const y = Math.round(event.clientY - rect.top);
+    
+        if (followMode) {
+            // Switch to manual mode on click
+            followMode = false;
+            document.getElementById("follow-mode-btn").innerHTML =
+                '<i class="fas fa-hand-pointer"></i> Manual Click Mode';
+            document.getElementById("video-overlay").style.display = "none";
+    
+            // Show toast
+            const toast = document.getElementById("mode-toast");
+            toast.classList.add("show");
+            setTimeout(() => toast.classList.remove("show"), 1500);
+        }
+    
         socket.emit("click_target", { x, y });
     });
-
+    
+    
     setInterval(() => {
         if (!followMode || !isHovering || mouseX === null || mouseY === null) return;
         if (mouseX === lastSent.x && mouseY === lastSent.y) return;
