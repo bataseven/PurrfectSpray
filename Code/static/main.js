@@ -37,8 +37,10 @@ document.addEventListener("DOMContentLoaded", function () {
         const btn = document.getElementById("shoot-btn");
         btn.disabled = true;
         btn.textContent = "FIRING...";
+        btn.dataset.firedAt = Date.now();  // track time for delayed ack display
         socket.emit("shoot");
     });
+    
 
     socket.on("status_update", data => {
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
@@ -64,12 +66,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
     socket.on("shoot_ack", data => {
         const btn = document.getElementById("shoot-btn");
-        btn.textContent = data.status === "fired" ? "Spray!" : "Busy";
+        const MIN_DISPLAY_TIME = 500;
+        const elapsed = Date.now() - btn.dataset.firedAt;
+        const remaining = Math.max(MIN_DISPLAY_TIME - elapsed, 0);
+    
         setTimeout(() => {
             btn.textContent = "Spray!";
             btn.disabled = false;
-        }, 1000);
+        }, remaining);
     });
+    
 
     let motorThrottle = { 1: 0, 2: 0 };
 
