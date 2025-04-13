@@ -45,13 +45,13 @@ class MobileNetDetector(BaseDetector):
         return results
 
 class YoloV5Detector(BaseDetector):
-    def __init__(self, model_name='yolov5s', conf_threshold=0.5):
+    def __init__(self, model_name='yolov5n', conf_threshold=0.5):
         self.model = torch.hub.load('ultralytics/yolov5', model_name, trust_repo=True)
         self.model.conf = conf_threshold  # confidence threshold
         self.model.eval()
 
     def detect(self, frame):
-        results = self.model(frame)
+        results = self.model(frame, size=320)  # resize to 320x320
         detections = results.xyxy[0]  # x1, y1, x2, y2, conf, class
 
         labels = self.model.names
