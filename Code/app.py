@@ -4,7 +4,7 @@ import time
 import threading
 from flask import Flask, render_template, Response, request, jsonify
 from flask_socketio import SocketIO, emit
-from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame, detect_in_background,latest_target_coords, target_lock
+from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame, detect_in_background
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from app_utils import get_cpu_temp, register_shutdown
@@ -126,16 +126,25 @@ def handle_shoot():
 
 @socketio.on('motor_control')
 def handle_motor_control(data):
+    import app_state
     global motor_active
 
     action = data.get('action')
-    target_class = data.get('target')  # Optional class override
+    target_class = data.get('target')  # Optional class
 
-    if action == 'start' and homing_complete:
+    if not homing_complete:
+        emit('motor_status', {
+            'status': 'Not ready (homing in progress)',
+            'auto_mode': False
+        })
+        return
+
+    if action == 'start':
         motor_active = True
         app_state.auto_mode = True
         if target_class:
             app_state.tracking_target = target_class
+
         emit('motor_status', {
             'status': f'Tracking {app_state.tracking_target.capitalize()}',
             'auto_mode': True,
@@ -144,9 +153,7 @@ def handle_motor_control(data):
 
     elif action == 'stop':
         motor_active = False
-        app_state.auto_mode = True
-        Motor1.stop()
-        Motor2.stop()
+        app_state.auto_mode = False
         emit('motor_status', {
             'status': 'Auto Mode Stopped',
             'auto_mode': False
@@ -154,41 +161,58 @@ def handle_motor_control(data):
 
     else:
         emit('motor_status', {
-            'status': 'Not ready' if not homing_complete else 'Unknown command',
+            'status': 'Unknown command',
             'auto_mode': app_state.auto_mode
         })
 
+
 def motor_loop():
+    import app_state
     global homing_complete
+
     try:
         logger.info("Starting homing procedure")
         homing_procedure()
         homing_complete = True
         logger.info("Homing complete")
 
-        last_sent = (None, None)
+        last_steps = (None, None)
+        current_coords = None
 
         while True:
-            # If auto mode is on and target was updated
-            if motor_active and homing_complete and target_lock.is_set():
-                with frame_lock:
-                    x, y = latest_target_coords
+            if motor_active and homing_complete and app_state.target_lock.is_set():
+                app_state.target_lock.clear()
 
+                new_coords = app_state.latest_target_coords
+                if new_coords != (None, None):
+                    current_coords = new_coords  # Snap to the latest target
+
+            # Interpolate toward the current_coords if defined
+            if motor_active and homing_complete and current_coords:
+                x, y = current_coords
                 theta1, theta2 = model.predict([[x, y]])[0]
                 steps1 = int(theta1 / DEGREES_PER_STEP_1)
                 steps2 = int(theta2 / DEGREES_PER_STEP_2)
 
-                # Don't repeat moves
-                if (steps1, steps2) != last_sent:
-                    Motor1.move_to(steps1)
-                    Motor2.move_to(steps2)
-                    last_sent = (steps1, steps2)
+                # Smooth movement: don't jump all the way
+                if last_steps == (None, None):
+                    last_steps = (Motor1.current_position(), Motor2.current_position())
 
-                target_lock.clear()  # Reset after handling
+                interp1 = int(last_steps[0] + (steps1 - last_steps[0]) * 0.1)
+                interp2 = int(last_steps[1] + (steps2 - last_steps[1]) * 0.1)
+
+                Motor1.move_to(interp1)
+                Motor2.move_to(interp2)
+
+                last_steps = (interp1, interp2)
 
             Motor1.run()
             Motor2.run()
             time.sleep(0.001)
+
+    except Exception as e:
+        logger.exception("Error in motor_loop")
+
 
     except Exception as e:
         logger.exception("Error in motor_loop")

@@ -1,3 +1,5 @@
+let isHoming = true;
+
 document.addEventListener("DOMContentLoaded", function () {
     const socket = io();
     const targetPositions = { 1: 0, 2: 0 };
@@ -21,6 +23,9 @@ document.addEventListener("DOMContentLoaded", function () {
         const btn = document.getElementById("follow-mode-btn");
 
         if (!followMode) {
+            if (!isHoming) {
+                socket.emit("motor_control", { action: "stop" });
+            }
             // Activating follow mode
             followMode = false; // temporarily block
             document.getElementById("video-overlay").style.display = "block";
@@ -37,13 +42,17 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 
-    document.getElementById("start-btn").addEventListener("click", () => {
+    const autoBtn = document.getElementById("start-btn");
+
+    autoBtn.addEventListener("click", () => {
+        const isStarting = autoBtn.textContent.includes("Start");
         const target = document.getElementById("auto-target-select").value;
-        socket.emit("motor_control", { action: "start", target: target });
-    });
     
-    document.getElementById("stop-btn").addEventListener("click", () => {
-        socket.emit("motor_control", { action: "stop" });
+        if (isStarting) {
+            socket.emit("motor_control", { action: "start", target: target });
+        } else {
+            socket.emit("motor_control", { action: "stop" });
+        }
     });
     
     document.getElementById("laser-btn").addEventListener("click", () => socket.emit("toggle_laser"));
@@ -57,28 +66,57 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     socket.on("status_update", data => {
+        isHoming = !data.homing;  // true if homing in progress
+    
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
         document.getElementById("cpu-temp").textContent = data.cpu_temp + "°C";
-        document.getElementById("laser-status").textContent = data.laser ? "On" : "Off";
-        document.getElementById("laser-status").className = 'status-value ' + (data.laser ? "On" : "Off");
-        document.getElementById("homing-status").textContent = data.homing ? "Complete" : "In Progress";
-        document.getElementById("homing-status").className = 'status-value ' + (data.homing ? "Complete" : "InProgress");
+        
+        const laserStatus = document.getElementById("laser-status");
+        laserStatus.textContent = data.laser ? "On" : "Off";
+        laserStatus.className = 'status-value ' + (data.laser ? "On" : "Off");
+    
+        const homingStatus = document.getElementById("homing-status");
+        homingStatus.textContent = data.homing ? "Complete" : "In Progress";
+        homingStatus.className = 'status-value ' + (data.homing ? "Complete" : "InProgress");
+    
         document.getElementById("sensor-status-1").textContent = data.sensor1 ? "Detected!" : "Not detected";
         document.getElementById("sensor-status-2").textContent = data.sensor2 ? "Detected!" : "Not detected";
+    
+        document.getElementById("start-btn").disabled = !data.homing;
     });
-
+    
+    
     socket.on("motor_status", data => {
         const statusEl = document.getElementById("motor-status");
-        const status = data.status || "Unknown";
+        const autoBtn = document.getElementById("start-btn");
+        const icon = autoBtn.querySelector("i");
     
+        const status = data.status || "Unknown";
         statusEl.textContent = status;
         statusEl.className = 'status-value ' + (data.auto_mode ? "Running" : "Stopped");
     
-        if (data.auto_mode && data.target) {
-            console.log(`[AUTO] Now tracking: ${data.target}`);
+        // Update button icon/text
+        if (data.auto_mode) {
+            icon.className = "fas fa-stop";
+            autoBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Auto Mode';
+            showToast(`Tracking: ${data.target || "Target"}`);
+        } else {
+            icon.className = "fas fa-play";
+            autoBtn.innerHTML = '<i class="fas fa-play"></i> Start Auto Mode';
+            showToast("Auto Mode Stopped");
         }
     });
+    
+    function showToast(message) {
+        const toast = document.getElementById("mode-toast");
+        toast.textContent = message;
+        toast.classList.add("show");
+    
+        setTimeout(() => {
+            toast.classList.remove("show");
+        }, 1500);
+    }
 
     socket.on("laser_status", data => {
         document.getElementById("laser-status").textContent = data.status;
@@ -138,6 +176,9 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     document.getElementById("video-feed").addEventListener("click", function (event) {
+        if (!isHoming) {
+            socket.emit("motor_control", { action: "stop" });
+        }
         const rect = this.getBoundingClientRect();
         const x = Math.round(event.clientX - rect.left);
         const y = Math.round(event.clientY - rect.top);
