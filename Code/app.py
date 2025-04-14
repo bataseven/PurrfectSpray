@@ -4,7 +4,7 @@ import time
 import threading
 from flask import Flask, render_template, Response, request, jsonify
 from flask_socketio import SocketIO, emit
-from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame
+from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame, detect_in_background,latest_target_coords, target_lock
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from app_utils import get_cpu_temp, register_shutdown
@@ -13,6 +13,8 @@ import numpy as np
 import os
 import logging
 from logging.handlers import RotatingFileHandler
+import app_state
+
 
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
@@ -31,14 +33,13 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 motor_active = False
+app_state.tracking_target= "person"  # default
 homing_complete = False
 water_gun_active = False
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 model_path = os.path.join(script_dir, 'model.pkl')
 model = joblib.load(model_path)
-
-
 
 
 @app.route('/')
@@ -126,17 +127,36 @@ def handle_shoot():
 @socketio.on('motor_control')
 def handle_motor_control(data):
     global motor_active
+
     action = data.get('action')
+    target_class = data.get('target')  # Optional class override
+
     if action == 'start' and homing_complete:
         motor_active = True
-        emit('motor_status', {'status': 'Running'})
+        app_state.auto_mode = True
+        if target_class:
+            app_state.tracking_target = target_class
+        emit('motor_status', {
+            'status': f'Tracking {app_state.tracking_target.capitalize()}',
+            'auto_mode': True,
+            'target': app_state.tracking_target
+        })
+
     elif action == 'stop':
         motor_active = False
+        app_state.auto_mode = True
         Motor1.stop()
         Motor2.stop()
-        emit('motor_status', {'status': 'Stopped'})
+        emit('motor_status', {
+            'status': 'Auto Mode Stopped',
+            'auto_mode': False
+        })
+
     else:
-        emit('motor_status', {'status': 'Not ready' if not homing_complete else 'Unknown command'})
+        emit('motor_status', {
+            'status': 'Not ready' if not homing_complete else 'Unknown command',
+            'auto_mode': app_state.auto_mode
+        })
 
 def motor_loop():
     global homing_complete
@@ -146,22 +166,33 @@ def motor_loop():
         homing_complete = True
         logger.info("Homing complete")
 
+        last_sent = (None, None)
+
         while True:
-            if motor_active and homing_complete:
-                if abs(Motor1.current_position()) < 100:
-                    Motor1.move(1000)
-                else:
-                    Motor1.move(-1000)
-                if abs(Motor2.current_position()) < 200:
-                    Motor2.move(2000)
-                else:
-                    Motor2.move(-2000)
+            # If auto mode is on and target was updated
+            if motor_active and homing_complete and target_lock.is_set():
+                with frame_lock:
+                    x, y = latest_target_coords
+
+                theta1, theta2 = model.predict([[x, y]])[0]
+                steps1 = int(theta1 / DEGREES_PER_STEP_1)
+                steps2 = int(theta2 / DEGREES_PER_STEP_2)
+
+                # Don't repeat moves
+                if (steps1, steps2) != last_sent:
+                    Motor1.move_to(steps1)
+                    Motor2.move_to(steps2)
+                    last_sent = (steps1, steps2)
+
+                target_lock.clear()  # Reset after handling
+
             Motor1.run()
             Motor2.run()
             time.sleep(0.001)
 
     except Exception as e:
         logger.exception("Error in motor_loop")
+
 
 def fan_loop():
     try:
@@ -199,6 +230,8 @@ def start_background_threads():
     threading.Thread(target=motor_loop, daemon=True).start()
     threading.Thread(target=fan_loop, daemon=True).start()
     threading.Thread(target=status_broadcast_loop, daemon=True).start()
+    threading.Thread(target=detect_in_background, daemon=True).start()
+    logger.info("Background threads started")
 
 start_background_threads()
 
