@@ -10,8 +10,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector
 import threading
-from app_state import auto_mode, tracking_target, latest_target_coords, target_lock
-
+import app_state
 
 logger = logging.getLogger("Camera")
 logger.setLevel(logging.INFO)
@@ -127,11 +126,11 @@ def detect_in_background():
                 latest_detections = detections
 
             for det in detections:
-                if auto_mode and det.label.lower() == tracking_target.lower():
+                if app_state.auto_mode and det.label.lower() == app_state.tracking_target.lower():
                     x = int((det.box[0] + det.box[2]) / 2)
                     y = int((det.box[1] + det.box[3]) / 2)
-                    latest_target_coords  = (x, y)
-                    target_lock.set()  # 🔁 signal motor loop to move
+                    app_state.latest_target_coords  = (x, y)
+                    app_state.target_lock.set()  # 🔁 signal motor loop to move
                     break  # only track the first match
 
         except Exception as e:
