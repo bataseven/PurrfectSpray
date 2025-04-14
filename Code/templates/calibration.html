@@ -3,17 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Calibration Interface</title>
-  <style>
-    body { font-family: sans-serif; margin: 0; padding: 0; text-align: center; background: #f0f0f0; }
-    h1 { background: #333; color: white; padding: 10px; }
-    #video-feed { border: 2px solid #333; cursor: crosshair; max-width: 100%; }
-    #coords { margin: 10px; font-size: 18px; }
-    .sliders { margin: 20px auto; width: 300px; }
-    .sliders label { display: block; margin: 10px 0 5px; }
-    input[type=range] { width: 100%; }
-    button { margin-top: 20px; padding: 10px 20px; font-size: 16px; }
-    #status { margin-top: 10px; font-size: 16px; color: #333; }
-  </style>
+  <link rel="stylesheet" href="/static/style.css">
+
 </head>
 <body>
   <h1>Laser Calibration</h1>
@@ -44,6 +35,14 @@
     const recordBtn = document.getElementById('record-btn');
     let lastPixel = null;
 
+    document.getElementById("video-feed").onload = () => {
+      document.getElementById("video-feed").style.display = "inline";
+      document.getElementById("loading-spinner").style.display = "none";
+    
+      const modeIndicator = document.getElementById("video-mode-indicator");
+      if (modeIndicator) modeIndicator.style.display = "block";
+    };
+
     function updateMotor(motor, value) {
       fetch(`/set_motor_position?motor=${motor}&position=${value}`);
     }
@@ -60,12 +59,22 @@
 
     document.getElementById('video-feed').addEventListener('click', function(event) {
       const rect = this.getBoundingClientRect();
-      const x = Math.round(event.clientX - rect.left);
-      const y = Math.round(event.clientY - rect.top);
+      const renderedWidth = rect.width;
+      const renderedHeight = rect.height;
+    
+      const nativeWidth = 1920;
+      const nativeHeight = 1080;
+    
+      const scaleX = nativeWidth / renderedWidth;
+      const scaleY = nativeHeight / renderedHeight;
+    
+      const x = Math.round((event.clientX - rect.left) * scaleX);
+      const y = Math.round((event.clientY - rect.top) * scaleY);
+    
       lastPixel = { x, y };
       document.getElementById('coords').textContent = `Selected pixel: (${x}, ${y})`;
     });
-
+    
     function recordPoint() {
       if (!lastPixel) {
         alert("Click on the image to select a pixel first.");

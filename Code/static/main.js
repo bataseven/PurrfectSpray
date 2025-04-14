@@ -2,7 +2,7 @@ let isHoming = true;
 let autoModeActive = false;
 let selectedTarget = "person"; // default selected target
 let currentMode = "idle"; // "idle", "follow", "tracking"
-
+let tipHidden = false;
 
 document.addEventListener("DOMContentLoaded", function () {
     const socket = io();
@@ -217,6 +217,13 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     document.getElementById("video-feed").addEventListener("click", function (event) {
+        if (!tipHidden && !isHoming) {
+            tipHidden = true;
+            setTimeout(() => {
+                const tip = document.getElementById("video-tip");
+                if (tip) tip.style.opacity = 0;
+            }, 3000);
+        }
         if (!isHoming) {
             socket.emit("motor_control", { action: "stop" });
         }
