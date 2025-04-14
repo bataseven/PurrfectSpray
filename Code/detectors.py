@@ -1,9 +1,11 @@
 # detectors.py
 
+import os
 import cv2
 import numpy as np
-import os
 import torch
+from openvino.runtime import Core
+
 
 class Detection:
     def __init__(self, class_id, label, confidence, box):
@@ -12,10 +14,15 @@ class Detection:
         self.confidence = confidence
         self.box = box  # (startX, startY, endX, endY)
 
+
 class BaseDetector:
     def detect(self, frame):
         raise NotImplementedError("Detector must implement detect()")
 
+
+# ----------------------------
+# MobileNet SSD (OpenCV DNN)
+# ----------------------------
 class MobileNetDetector(BaseDetector):
     def __init__(self):
         script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -44,14 +51,19 @@ class MobileNetDetector(BaseDetector):
                 results.append(Detection(class_id, label, confidence, (startX, startY, endX, endY)))
         return results
 
+
+# ----------------------------
+# YOLOv5 via PyTorch (torch.hub)
+# ----------------------------
 class YoloV5Detector(BaseDetector):
-    def __init__(self, model_name='yolov5n', conf_threshold=0.5):
+    def __init__(self, model_name='yolov5n', conf_threshold=0.5, size=640):
+        self.size = size
         self.model = torch.hub.load('ultralytics/yolov5', model_name, trust_repo=True)
         self.model.conf = conf_threshold  # confidence threshold
         self.model.eval()
 
     def detect(self, frame):
-        results = self.model(frame, size=320)  # resize to 320x320
+        results = self.model(frame, size=self.size)
         detections = results.xyxy[0]  # x1, y1, x2, y2, conf, class
 
         labels = self.model.names
@@ -63,3 +75,62 @@ class YoloV5Detector(BaseDetector):
             label = labels[int(class_id)]
             output.append(Detection(int(class_id), label, float(conf), (x1, y1, x2, y2)))
         return output
+
+
+# ----------------------------
+# YOLOv5 OpenVINO (IR format)
+# ----------------------------
+class YoloV5OVDetector(BaseDetector):
+    def __init__(self, model_dir='yolov5nu_openvino_model', conf_threshold=0.5):
+        self.conf_threshold = conf_threshold
+        self.core = Core()
+        self.model = self.core.compile_model(f"{model_dir}/yolov5nu.xml", "CPU")
+        self.input_layer = self.model.input(0)
+        self.output_layer = self.model.output(0)
+        self.input_size = self.input_layer.shape[2:]  # [height, width]
+        self.class_names = [
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+    "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+    "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+    "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+    "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
+    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
+    "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+]
+
+    def detect(self, frame):
+        detections = []
+        try:
+            h, w = frame.shape[:2]
+            resized = cv2.resize(frame, tuple(self.input_size))
+            blob = resized.transpose(2, 0, 1)[np.newaxis, :] / 255.0
+
+            outputs = self.model([blob])[self.output_layer]
+            outputs = np.squeeze(outputs)
+
+            for det in outputs:
+                conf = det[4]
+                if conf < self.conf_threshold:
+                    continue
+                cls_id = int(np.argmax(det[5:]))
+                label = self.class_names[cls_id] if cls_id < len(self.class_names) else f"class_{cls_id}"
+
+                x_center, y_center, width, height = det[:4]
+                x_center *= w
+                y_center *= h
+                width *= w
+                height *= h
+                x1 = int(x_center - width / 2)
+                y1 = int(y_center - height / 2)
+                x2 = int(x_center + width / 2)
+                y2 = int(y_center + height / 2)
+
+                detections.append(Detection(cls_id, label, float(conf), (x1, y1, x2, y2)))
+        except Exception as e:
+            import logging
+            logging.getLogger("App").exception("Error in OpenVINO detect()")
+
+        return detections

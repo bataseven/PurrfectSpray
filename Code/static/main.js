@@ -4,15 +4,22 @@ document.addEventListener("DOMContentLoaded", function () {
     let followMode = false, mouseX = null, mouseY = null, isHovering = false, lastSent = { x: null, y: null };
 
     function hideSpinner() {
-        document.getElementById('loading-spinner').style.display = 'none';
-        document.getElementById('video-feed').style.display = 'inline';
+        document.getElementById("loading-spinner").style.display = 'none';
+        document.getElementById("video-feed").style.display = 'inline';
     }
+
+    setTimeout(() => {
+        if (document.getElementById("video-feed").complete) {
+            hideSpinner();
+        }
+    }, 2000); // fallback just in case
+
 
     document.getElementById("video-feed").onload = hideSpinner;
 
     document.getElementById("follow-mode-btn").addEventListener("click", () => {
         const btn = document.getElementById("follow-mode-btn");
-    
+
         if (!followMode) {
             // Activating follow mode
             followMode = false; // temporarily block
@@ -28,10 +35,17 @@ document.addEventListener("DOMContentLoaded", function () {
             btn.innerHTML = '<i class="fas fa-hand-pointer"></i> Manual Click Mode';
         }
     });
-    
 
-    document.getElementById("start-btn").addEventListener("click", () => socket.emit("motor_control", { action: "start" }));
-    document.getElementById("stop-btn").addEventListener("click", () => socket.emit("motor_control", { action: "stop" }));
+
+    document.getElementById("start-btn").addEventListener("click", () => {
+        const target = document.getElementById("auto-target-select").value;
+        socket.emit("motor_control", { action: "start", target: target });
+    });
+    
+    document.getElementById("stop-btn").addEventListener("click", () => {
+        socket.emit("motor_control", { action: "stop" });
+    });
+    
     document.getElementById("laser-btn").addEventListener("click", () => socket.emit("toggle_laser"));
     document.getElementById("shoot-btn").addEventListener("click", () => {
         const btn = document.getElementById("shoot-btn");
@@ -40,7 +54,7 @@ document.addEventListener("DOMContentLoaded", function () {
         btn.dataset.firedAt = Date.now();  // track time for delayed ack display
         socket.emit("shoot");
     });
-    
+
 
     socket.on("status_update", data => {
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
@@ -55,8 +69,15 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     socket.on("motor_status", data => {
-        document.getElementById("motor-status").textContent = data.status;
-        document.getElementById("motor-status").className = 'status-value ' + data.status;
+        const statusEl = document.getElementById("motor-status");
+        const status = data.status || "Unknown";
+    
+        statusEl.textContent = status;
+        statusEl.className = 'status-value ' + (data.auto_mode ? "Running" : "Stopped");
+    
+        if (data.auto_mode && data.target) {
+            console.log(`[AUTO] Now tracking: ${data.target}`);
+        }
     });
 
     socket.on("laser_status", data => {
@@ -69,13 +90,13 @@ document.addEventListener("DOMContentLoaded", function () {
         const MIN_DISPLAY_TIME = 500;
         const elapsed = Date.now() - btn.dataset.firedAt;
         const remaining = Math.max(MIN_DISPLAY_TIME - elapsed, 0);
-    
+
         setTimeout(() => {
             btn.textContent = "Spray!";
             btn.disabled = false;
         }, remaining);
     });
-    
+
 
     let motorThrottle = { 1: 0, 2: 0 };
 
@@ -84,14 +105,14 @@ document.addEventListener("DOMContentLoaded", function () {
         motorThrottle[motorNum] = Date.now();
         socket.emit("set_motor_position", { motor: motorNum, position: deg });
     }
-    
+
     document.getElementById("motor1-slider").addEventListener("input", function () {
         const deg = parseInt(this.value);
         targetPositions[1] = deg;
         document.getElementById("motor1-target").textContent = deg + "°";
         emitMotorUpdate(1, deg);
     });
-    
+
     document.getElementById("motor2-slider").addEventListener("input", function () {
         const deg = parseInt(this.value);
         targetPositions[2] = deg;
@@ -120,24 +141,24 @@ document.addEventListener("DOMContentLoaded", function () {
         const rect = this.getBoundingClientRect();
         const x = Math.round(event.clientX - rect.left);
         const y = Math.round(event.clientY - rect.top);
-    
+
         if (followMode) {
             // Switch to manual mode on click
             followMode = false;
             document.getElementById("follow-mode-btn").innerHTML =
                 '<i class="fas fa-hand-pointer"></i> Manual Click Mode';
             document.getElementById("video-overlay").style.display = "none";
-    
+
             // Show toast
             const toast = document.getElementById("mode-toast");
             toast.classList.add("show");
             setTimeout(() => toast.classList.remove("show"), 1500);
         }
-    
+
         socket.emit("click_target", { x, y });
     });
-    
-    
+
+
     setInterval(() => {
         if (!followMode || !isHovering || mouseX === null || mouseY === null) return;
         if (mouseX === lastSent.x && mouseY === lastSent.y) return;
