@@ -18,13 +18,16 @@
     <div id="video-wrapper">
       <div id="loading-spinner"></div>
       <img id="video-feed" src="/video_feed" alt="Video Feed">
-      <div class="video-overlay" id="video-overlay">
-        <i class="fas fa-crosshairs"></i> Targeting...
+
+      <div class="video-mode-indicator" id="video-mode-indicator">
+        <i class="fas fa-circle"></i> Mode: Idle
       </div>
+
+      <div class="video-tip" id="video-tip">
+        💡 Tip: Click anywhere on the video to manually aim the laser.
+      </div>
+
       <div id="mode-toast" class="toast">Switched to Manual Mode</div>
-    </div>
-    <div class="video-hint">
-      💡 Tip: Click anywhere on the video to manually aim the laser.
     </div>
 
     <div class="target-selector">
@@ -41,7 +44,7 @@
 
     <div class="follow-controls">
       <button class="control-btn" id="start-btn" title="Starts automatic object tracking">
-        <i class="fas fa-play"></i> Start Auto Mode
+        <i class="fas fa-play"></i> Start Auto Tracking
       </button>
 
       <div id="auto-mode-indicator" class="auto-indicator off">

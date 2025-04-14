@@ -34,9 +34,20 @@ h2 i {
 }
 
 #video-feed {
-  max-width: 100%;
+  width: 100%;
   height: auto;
-  display: none;
+  max-height: 50vh; /* 👈 Limit height to 65% of the viewport */
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+#video-wrapper {
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
 }
 
 #loading-spinner {
@@ -327,5 +338,39 @@ footer {
   font-size: 0.9em;
   z-index: 15;
   pointer-events: none;
+  display: none;
 }
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px 4px rgba(255, 255, 255, 0.3);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+}
+
+.video-mode-indicator.pulse {
+  animation: pulse 0.4s ease-out;
+}
+
+.video-tip {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  z-index: 12;
+  pointer-events: none;
+  max-width: 90%;
+}
+
 

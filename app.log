@@ -696,3 +696,866 @@ gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
 2025-04-14 21:08:50,453 [INFO] Background threads started
 2025-04-14 21:09:05,191 [INFO] Homing procedure complete and speed limits set
 2025-04-14 21:09:05,194 [INFO] Homing complete
+2025-04-14 21:13:24,399 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 228, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:13:34,714 [INFO] Starting homing procedure
+2025-04-14 21:13:34,717 [INFO] Background threads started
+2025-04-14 21:13:50,471 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:13:50,473 [INFO] Homing complete
+2025-04-14 21:18:09,091 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:18:21,306 [INFO] Starting homing procedure
+2025-04-14 21:18:21,312 [INFO] Background threads started
+2025-04-14 21:18:37,046 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:18:37,046 [INFO] Homing complete
+2025-04-14 21:21:03,248 [INFO] Starting homing procedure
+2025-04-14 21:21:03,252 [INFO] Background threads started
+2025-04-14 21:21:19,016 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:21:19,017 [INFO] Homing complete
+2025-04-14 21:23:13,126 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:23:18,794 [INFO] Starting homing procedure
+2025-04-14 21:23:18,798 [INFO] Background threads started
+2025-04-14 21:23:25,877 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:23:25,878 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 228, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:24:27,255 [INFO] Starting homing procedure
+2025-04-14 21:24:27,257 [INFO] Background threads started
+2025-04-14 21:24:45,432 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:24:45,432 [INFO] Homing complete
+2025-04-14 21:25:21,412 [INFO] Starting homing procedure
+2025-04-14 21:25:21,417 [INFO] Background threads started
+2025-04-14 21:25:39,169 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:25:39,170 [INFO] Homing complete
+2025-04-14 21:25:54,710 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:25:54,753 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 228, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:27:01,976 [INFO] Starting homing procedure
+2025-04-14 21:27:01,980 [INFO] Background threads started
+2025-04-14 21:27:18,055 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:27:18,056 [INFO] Homing complete
+2025-04-14 21:27:44,258 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 228, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:27:44,264 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:27:49,842 [INFO] Starting homing procedure
+2025-04-14 21:27:49,845 [INFO] Background threads started
+2025-04-14 21:28:07,055 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:28:07,055 [INFO] Homing complete
+2025-04-14 21:28:36,453 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:28:44,111 [INFO] Starting homing procedure
+2025-04-14 21:28:44,119 [INFO] Background threads started
+2025-04-14 21:29:01,396 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:29:01,396 [INFO] Homing complete
+2025-04-14 21:31:34,525 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:31:39,661 [INFO] Starting homing procedure
+2025-04-14 21:31:39,664 [INFO] Background threads started
+2025-04-14 21:31:59,445 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:31:59,445 [INFO] Homing complete
+2025-04-14 21:48:52,845 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 228, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:48:52,851 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 21:48:58,473 [INFO] Starting homing procedure
+2025-04-14 21:48:58,477 [INFO] Background threads started
+2025-04-14 21:49:15,068 [INFO] Homing procedure complete and speed limits set
+2025-04-14 21:49:15,068 [INFO] Homing complete
+2025-04-14 22:03:09,427 [INFO] Starting homing procedure
+2025-04-14 22:03:09,431 [INFO] Background threads started
+2025-04-14 22:03:35,088 [ERROR] Error during homing_procedure
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: DigitalInputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 76, in homing_procedure
+    home_motor(Motor1, hall_sensor_1, 1)
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 47, in home_motor
+    while not read_sensor():
+              ^^^^^^^^^^^^^
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 36, in read_sensor
+    return not hall_sensor.value
+               ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: DigitalInputDevice is closed or uninitialized
+2025-04-14 22:03:35,193 [INFO] Homing complete
+2025-04-14 22:03:35,203 [ERROR] Error in motor_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: DigitalOutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 209, in motor_loop
+    Motor1.run()
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 134, in run
+    if self.run_speed():
+       ^^^^^^^^^^^^^^^^
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 75, in run_speed
+    self.step(self._currentPos)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 180, in step
+    self.step1(step)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 212, in step1
+    self.set_output_pins(0b10 if self._direction else 0b00)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 203, in set_output_pins
+    self._pins[i].off() if not self._pinInverted[i] else self._pins[i].on()
+    ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 214, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: DigitalOutputDevice is closed or uninitialized
+2025-04-14 22:07:25,190 [INFO] Starting homing procedure
+2025-04-14 22:07:25,195 [INFO] Background threads started
+2025-04-14 22:07:35,329 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:07:35,332 [INFO] Homing complete
+2025-04-14 22:09:27,907 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 228, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 22:09:33,260 [INFO] Starting homing procedure
+2025-04-14 22:09:33,264 [INFO] Background threads started
+2025-04-14 22:09:48,551 [ERROR] Error during homing_procedure
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: DigitalInputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 76, in homing_procedure
+    home_motor(Motor1, hall_sensor_1, 1)
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 47, in home_motor
+    while not read_sensor():
+              ^^^^^^^^^^^^^
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 36, in read_sensor
+    return not hall_sensor.value
+               ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: DigitalInputDevice is closed or uninitialized
+2025-04-14 22:09:48,553 [INFO] Homing complete
+2025-04-14 22:09:48,554 [ERROR] Error in motor_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: DigitalOutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 209, in motor_loop
+    Motor1.run()
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 134, in run
+    if self.run_speed():
+       ^^^^^^^^^^^^^^^^
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 75, in run_speed
+    self.step(self._currentPos)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 180, in step
+    self.step1(step)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 212, in step1
+    self.set_output_pins(0b10 if self._direction else 0b00)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 203, in set_output_pins
+    self._pins[i].off() if not self._pinInverted[i] else self._pins[i].on()
+    ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 214, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: DigitalOutputDevice is closed or uninitialized
+2025-04-14 22:09:48,704 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 22:10:10,973 [INFO] Starting homing procedure
+2025-04-14 22:10:10,977 [INFO] Background threads started
+2025-04-14 22:10:24,303 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:10:24,304 [INFO] Homing complete
+2025-04-14 22:13:52,903 [INFO] Starting homing procedure
+2025-04-14 22:13:52,905 [INFO] Background threads started
+2025-04-14 22:14:09,339 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:14:09,339 [INFO] Homing complete
+2025-04-14 22:15:17,657 [INFO] Starting homing procedure
+2025-04-14 22:15:17,660 [INFO] Background threads started
+2025-04-14 22:15:33,096 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:15:33,096 [INFO] Homing complete
+2025-04-14 22:18:04,945 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 22:18:10,639 [INFO] Starting homing procedure
+2025-04-14 22:18:10,641 [INFO] Background threads started
+2025-04-14 22:18:24,935 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:18:24,936 [INFO] Homing complete
+2025-04-14 22:19:09,849 [INFO] Starting homing procedure
+2025-04-14 22:19:09,853 [INFO] Background threads started
+2025-04-14 22:19:24,170 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:19:24,171 [INFO] Homing complete
+2025-04-14 22:20:04,400 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 22:31:59,633 [INFO] Starting homing procedure
+2025-04-14 22:31:59,638 [INFO] Background threads started
+2025-04-14 22:32:16,411 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:32:16,411 [INFO] Homing complete
+2025-04-14 22:33:14,434 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 22:33:28,921 [INFO] Starting homing procedure
+2025-04-14 22:33:28,927 [INFO] Background threads started
+2025-04-14 22:33:43,366 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:33:43,367 [INFO] Homing complete
+2025-04-14 22:35:15,394 [ERROR] Error in status_broadcast_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 241, in status_broadcast_loop
+    'laser': laser_pin.value,
+             ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 121, in value
+    return super().value
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-14 22:35:20,921 [INFO] Starting homing procedure
+2025-04-14 22:35:20,924 [INFO] Background threads started
+2025-04-14 22:35:38,340 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:35:38,341 [INFO] Homing complete
+2025-04-14 22:36:53,940 [INFO] Starting homing procedure
+2025-04-14 22:36:53,942 [INFO] Background threads started
+2025-04-14 22:37:10,536 [INFO] Homing procedure complete and speed limits set
+2025-04-14 22:37:10,536 [INFO] Homing complete
+2025-04-14 22:38:04,425 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 228, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized

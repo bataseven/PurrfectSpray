@@ -1,6 +1,8 @@
 let isHoming = true;
 let autoModeActive = false;
 let selectedTarget = "person"; // default selected target
+let currentMode = "idle"; // "idle", "follow", "tracking"
+
 
 document.addEventListener("DOMContentLoaded", function () {
     const socket = io();
@@ -10,6 +12,10 @@ document.addEventListener("DOMContentLoaded", function () {
     function hideSpinner() {
         document.getElementById("loading-spinner").style.display = 'none';
         document.getElementById("video-feed").style.display = 'inline';
+        const modeIndicator = document.getElementById("video-mode-indicator");
+        if (modeIndicator) {
+            modeIndicator.style.display = 'block';
+        }
     }
 
     setTimeout(() => {
@@ -29,10 +35,29 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-    function updateModeIndicator(label, icon = "fa-crosshairs") {
+    function updateModeIndicator(label, icon = "fa-crosshairs", force = false) {
         const indicator = document.getElementById("video-mode-indicator");
+
+        // Determine new mode
+        const nextMode =
+            label.toLowerCase().includes("follow") ? "follow" :
+                label.toLowerCase().includes("tracking") ? "tracking" :
+                    "idle";
+
+        // 🛡️ Prevent overwriting active follow mode with Idle, unless we're truly canceling it
+        if (!force && nextMode === "idle" && currentMode === "follow") return;
+
+        // Update visual + state
         indicator.innerHTML = `<i class="fas ${icon}"></i> Mode: ${label}`;
+        // Only remove the pulse class if the mode is changing
+        if (currentMode !== nextMode) {
+            indicator.classList.remove("pulse");
+            void indicator.offsetWidth;
+            indicator.classList.add("pulse");
+        }
+        currentMode = nextMode;
     }
+
 
     // 🔁 Follow Mode Toggle
     document.getElementById("follow-mode-btn").addEventListener("click", () => {
@@ -43,19 +68,18 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!isHoming) {
                 socket.emit("motor_control", { action: "stop" });
             }
-            followMode = false;
-            document.getElementById("video-overlay").style.display = "block";
+
+            followMode = true;
             btn.innerHTML = '<i class="fas fa-ban"></i> Stop Cursor Follow';
-            updateModeIndicator("Follow Cursor", "fa-mouse-pointer");  // 🔁 ADD THIS
-            setTimeout(() => {
-                followMode = true;
-            }, 500);
+            updateModeIndicator("Follow Cursor", "fa-mouse-pointer");
+
+            // Optional: throttle cursor update delay for first second
+            lastSent = { x: null, y: null }; // reset cursor memory
         } else {
             // Stop Follow Mode
             followMode = false;
-            document.getElementById("video-overlay").style.display = "none";
             btn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Start Cursor Follow';
-            updateModeIndicator("Idle", "fa-circle");  // 🔁 ADD THIS
+            updateModeIndicator("Idle", "fa-circle", true);  // 🔁 ADD THIS
         }
     });
 
@@ -117,22 +141,22 @@ document.addEventListener("DOMContentLoaded", function () {
             showToast(`Tracking: ${data.target || "Target"}`);
             autoModeActive = true;
         } else if (!data.auto_mode && autoModeActive) {
-            showToast("Auto Mode Stopped");
+            showToast("Auto Tracking Stopped");
             autoModeActive = false;
         }
 
         if (data.auto_mode) {
             updateModeIndicator(`Tracking ${data.target || "Target"}`, "fa-bullseye");  // 🔁 ADD
-            autoBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Auto Mode';
+            autoBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Auto Tracking';
             indicator.classList.remove("off");
             indicator.classList.add("on");
-            indicator.innerHTML = '<i class="fas fa-bullseye"></i> Auto Mode: On';
+            indicator.innerHTML = '<i class="fas fa-bullseye"></i> Auto Tracking: On';
         } else {
             updateModeIndicator("Idle", "fa-circle");  // 🔁 ADD
-            autoBtn.innerHTML = '<i class="fas fa-play"></i> Start Auto Mode';
+            autoBtn.innerHTML = '<i class="fas fa-play"></i> Start Auto Tracking';
             indicator.classList.remove("on");
             indicator.classList.add("off");
-            indicator.innerHTML = '<i class="fas fa-bullseye"></i> Auto Mode: Off';
+            indicator.innerHTML = '<i class="fas fa-bullseye"></i> Auto Tracking: Off';
         }
     });
 
@@ -182,7 +206,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("motor2-target").textContent = deg + "°";
         emitMotorUpdate(2, deg);
     });
-    
+
     // 🔁 Mouse Tracking for Follow Mode
     document.getElementById("video-feed").addEventListener("mouseenter", () => isHovering = true);
     document.getElementById("video-feed").addEventListener("mouseleave", () => isHovering = false);
@@ -205,9 +229,8 @@ document.addEventListener("DOMContentLoaded", function () {
             followMode = false;
             document.getElementById("follow-mode-btn").innerHTML =
                 '<i class="fas fa-mouse-pointer"></i> Start Cursor Follow';
-            document.getElementById("video-overlay").style.display = "none";
-            updateModeIndicator("Idle", "fa-circle");
-            
+            updateModeIndicator("Idle", "fa-circle", true);
+
             const toast = document.getElementById("mode-toast");
             toast.classList.add("show");
             showToast("Cursor follow disabled. You can now click to aim.");

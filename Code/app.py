@@ -146,7 +146,7 @@ def handle_motor_control(data):
             app_state.tracking_target = target_class
 
         emit('motor_status', {
-            'status': f'Tracking {app_state.tracking_target.capitalize()}',
+            'status': 'Running',
             'auto_mode': True,
             'target': app_state.tracking_target
         })
