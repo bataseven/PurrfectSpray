@@ -82,8 +82,8 @@ def capture_and_process():
             fps = 1 / (current_time - last_fps_time)
             last_fps_time = current_time
 
-            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            # cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30),
+            #     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
             with frame_lock:
                 latest_frame = frame.copy()

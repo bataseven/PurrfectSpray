@@ -14,6 +14,7 @@
 <body>
   <div class="video-container">
     <h1><i class="fas fa-video"></i> Cat Detection System</h1>
+
     <div id="video-wrapper">
       <div id="loading-spinner"></div>
       <img id="video-feed" src="/video_feed" alt="Video Feed">
@@ -22,19 +23,38 @@
       </div>
       <div id="mode-toast" class="toast">Switched to Manual Mode</div>
     </div>
+    <div class="video-hint">
+      💡 Tip: Click anywhere on the video to manually aim the laser.
+    </div>
+
+    <div class="target-selector">
+      <button class="target-btn selected" data-target="person">
+        <img src="static/img/person.png" alt="Person"><br>Person
+      </button>
+      <button class="target-btn" data-target="cat">
+        <img src="static/img/cat.png" alt="Cat"><br>Cat
+      </button>
+      <button class="target-btn" data-target="dog">
+        <img src="static/img/dog.png" alt="Dog"><br>Dog
+      </button>
+    </div>
 
     <div class="follow-controls">
-      <button class="control-btn follow-btn" id="follow-mode-btn"
-        title="Toggle real-time targeting using your mouse cursor over the video feed.">
-        <i class="fas fa-hand-pointer"></i> Manual Click Mode
+      <button class="control-btn" id="start-btn" title="Starts automatic object tracking">
+        <i class="fas fa-play"></i> Start Auto Mode
       </button>
-      <select id="auto-target-select">
-        <option value="person">Person</option>
-        <option value="cat">Cat</option>
-        <option value="dog">Dog</option>
-      </select>
+
+      <div id="auto-mode-indicator" class="auto-indicator off">
+        <i class="fas fa-bullseye"></i> Auto Mode: Off
+      </div>
+
+      <button class="control-btn follow-btn" id="follow-mode-btn"
+        title="Move laser with your mouse while hovering over video">
+        <i class="fas fa-mouse-pointer"></i> Start Cursor Follow
+      </button>
     </div>
   </div>
+
 
   <div class="control-panel">
 
@@ -50,10 +70,6 @@
     <!-- System Controls -->
     <div class="control-section">
       <h2><i class="fas fa-sliders-h"></i> System Controls</h2>
-
-      <button class="control-btn" id="start-btn" title="Starts automatic cat detection">
-        <i class="fas fa-play"></i> Start Auto Mode
-      </button>
 
       <button class="control-btn" id="laser-btn" title="Toggle laser visibility">
         <i class="fas fa-lightbulb"></i> Toggle Laser

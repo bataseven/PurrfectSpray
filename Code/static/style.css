@@ -252,3 +252,80 @@ footer {
 .toast.show {
   opacity: 1;
 }
+
+.auto-indicator {
+  margin-top: 10px;
+  font-weight: bold;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  font-size: 0.95em;
+  transition: background 0.3s ease;
+}
+
+.auto-indicator.on {
+  background-color: #2ecc71;
+  color: white;
+}
+
+.auto-indicator.off {
+  background-color: #888;
+  color: white;
+}
+
+.target-selector {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.target-btn {
+  background-color: #eee;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  width: 80px;
+  transition: 0.3s ease;
+  font-size: 0.9em;
+}
+
+.target-btn img {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 5px;
+}
+
+.target-btn:hover {
+  border-color: #666;
+}
+
+.target-btn.selected {
+  background-color: #2ecc71;
+  color: white;
+  border-color: #27ae60;
+}
+
+.video-hint {
+  text-align: center;
+  color: #888;
+  font-size: 0.85em;
+  margin-top: 8px;
+}
+
+.video-mode-indicator {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: rgba(0, 0, 0, 0.65);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  z-index: 15;
+  pointer-events: none;
+}
+
