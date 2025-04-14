@@ -14,6 +14,8 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 import app_state
+from gevent import monkey
+monkey.patch_all(subprocess=False, thread=False)
 
 
 logger = logging.getLogger("App")
@@ -30,7 +32,7 @@ file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(messa
 logger.addHandler(file_handler)
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 motor_active = False
 app_state.tracking_target= "person"  # default
