@@ -333,10 +333,8 @@ footer {
   animation: pulse 0.4s ease-out;
 }
 
+
 .video-tip {
-  opacity: 0;
-  transition: opacity 1s ease;
-  pointer-events: none;
   position: absolute;
   bottom: 10px;
   left: 10px;
@@ -346,6 +344,9 @@ footer {
   border-radius: 6px;
   font-size: 0.85em;
   z-index: 12;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1s ease;
 }
 
 .video-tip.show {
@@ -353,9 +354,9 @@ footer {
 }
 
 .video-tip.hidden {
-  pointer-events: none;
-  visibility: hidden;
+  opacity: 0;
 }
+
 
 
 .viewer-indicator {
