@@ -3,6 +3,9 @@ let autoModeActive = false;
 let selectedTarget = "person"; // default selected target
 let currentMode = "idle"; // "idle", "follow", "tracking"
 let tipHidden = false;
+let videoTip = null;
+let hasControl = false;
+let fadeTimeout = null;
 
 document.addEventListener("DOMContentLoaded", function () {
     const socket = io();
@@ -14,16 +17,22 @@ document.addEventListener("DOMContentLoaded", function () {
         mySocketId = socket.id;
     });
 
+    videoTip = document.getElementById("video-tip");
+
     function hideSpinner() {
         document.getElementById("loading-spinner").style.display = 'none';
         document.getElementById("video-feed").style.display = 'inline';
+    
         const modeIndicator = document.getElementById("video-mode-indicator");
-        if (modeIndicator) {
-            modeIndicator.style.display = 'block';
+        if (modeIndicator) modeIndicator.style.display = 'block';
+    
+        // show tip on initial load
+        if (!tipHidden && videoTip) {
+            videoTip.classList.add("show");
+            videoTip.classList.remove("hidden");
         }
-        const videoTip = document.getElementById("video-tip");
-
     }
+    
 
     setTimeout(() => {
         if (document.getElementById("video-feed").complete) {
@@ -227,14 +236,38 @@ document.addEventListener("DOMContentLoaded", function () {
         mouseY = Math.round(event.clientY - rect.top);
     });
 
-    document.getElementById("video-feed").addEventListener("click", function (event) {
-        if (!tipHidden && !isHoming) {
-            tipHidden = true;
-            setTimeout(() => {
-                const tip = document.getElementById("video-tip");
-                if (tip) tip.style.opacity = 0;
-            }, 3000);
+    let tipHidden = false;
+    let fadeTimeout = null;
+    
+    function fadeOutVideoTipAfterDelay(delayMs = 1000) {
+        if (!videoTip || tipHidden) return;
+    
+        tipHidden = true;
+    
+        // Cancel previous timeout if any
+        if (fadeTimeout) {
+            clearTimeout(fadeTimeout);
+            fadeTimeout = null;
         }
+    
+        // Ensure it's visible before hiding
+        videoTip.classList.add("show");
+        videoTip.classList.remove("hidden");
+    
+        fadeTimeout = setTimeout(() => {
+            // Only this client’s timeout can affect the DOM
+            videoTip.classList.remove("show");
+            videoTip.classList.add("hidden");
+            fadeTimeout = null;
+        }, delayMs);
+    }
+    
+    
+    
+
+    document.getElementById("video-feed").addEventListener("click", function (event) {
+
+        fadeOutVideoTipAfterDelay(1000);
         if (!isHoming) {
             socket.emit("motor_control", { action: "stop" });
         }
@@ -262,6 +295,23 @@ document.addEventListener("DOMContentLoaded", function () {
         const activeSid = data.sid;
         const isController = (activeSid === mySocketId);
 
+        if (!isController && hasControl) {
+            hasControl = false;
+            showToast("Another client took control.");
+        
+            if (videoTip) {
+                tipHidden = false;
+                videoTip.classList.add("show");
+                videoTip.classList.remove("hidden");
+        
+                if (fadeTimeout) {
+                    clearTimeout(fadeTimeout);
+                    fadeTimeout = null;
+                }
+            }
+        }
+        
+
         // If you lost control
         if (!isController) {
             if (followMode) {
@@ -271,23 +321,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 updateModeIndicator("Idle", "fa-circle", true);
                 showToast("Another client took control. Cursor follow stopped.");
             }
-
+            
             document.getElementById("motor1-slider").disabled = true;
             document.getElementById("motor2-slider").disabled = true;
 
-            document.getElementById("follow-mode-btn").disabled = true;
-            document.getElementById("start-btn").disabled = true;
-
-            const videoTip = document.getElementById("video-tip");
-            videoTip.classList.add("show");
-            videoTip.classList.remove("hidden");
-            
-            setTimeout(() => {
-              videoTip.classList.remove("show");
-              setTimeout(() => videoTip.classList.add("hidden"), 1000);  // Wait for fade-out to finish
-            }, 3000);
-            
+            // document.getElementById("follow-mode-btn").disabled = true;
+            // document.getElementById("start-btn").disabled = true;  
         } else {
+            hasControl = true;
             document.getElementById("motor1-slider").disabled = false;
             document.getElementById("motor2-slider").disabled = false;
             document.getElementById("follow-mode-btn").disabled = false;
