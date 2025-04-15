@@ -20,19 +20,22 @@ document.addEventListener("DOMContentLoaded", function () {
     videoTip = document.getElementById("video-tip");
 
     function hideSpinner() {
-        document.getElementById("loading-spinner").style.display = 'none';
-        document.getElementById("video-feed").style.display = 'inline';
-    
+        const spinner = document.getElementById("loading-spinner");
+        const video = document.getElementById("video-feed");
+
+        if (spinner) spinner.style.display = 'none';
+        if (video) video.style.display = 'inline';
+
         const modeIndicator = document.getElementById("video-mode-indicator");
         if (modeIndicator) modeIndicator.style.display = 'block';
-    
+
         // show tip on initial load
         if (!tipHidden && videoTip) {
             videoTip.classList.add("show");
             videoTip.classList.remove("hidden");
         }
     }
-    
+
     document.getElementById("video-feed").onload = hideSpinner;
 
     setTimeout(() => {
@@ -239,22 +242,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let tipHidden = false;
     let fadeTimeout = null;
-    
+
     function fadeOutVideoTipAfterDelay(delayMs = 1000) {
         if (!videoTip || tipHidden) return;
-    
+
         tipHidden = true;
-    
+
         // Cancel previous timeout if any
         if (fadeTimeout) {
             clearTimeout(fadeTimeout);
             fadeTimeout = null;
         }
-    
+
         // Ensure it's visible before hiding
         videoTip.classList.add("show");
         videoTip.classList.remove("hidden");
-    
+
         fadeTimeout = setTimeout(() => {
             // Only this client’s timeout can affect the DOM
             videoTip.classList.remove("show");
@@ -262,9 +265,7 @@ document.addEventListener("DOMContentLoaded", function () {
             fadeTimeout = null;
         }, delayMs);
     }
-    
-    
-    
+
 
     document.getElementById("video-feed").addEventListener("click", function (event) {
 
@@ -274,8 +275,18 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         const rect = this.getBoundingClientRect();
-        const x = Math.round(event.clientX - rect.left);
-        const y = Math.round(event.clientY - rect.top);
+
+        const renderedWidth = rect.width;
+        const renderedHeight = rect.height;
+
+        const nativeWidth = 1920;
+        const nativeHeight = 1080;
+
+        const scaleX = nativeWidth / renderedWidth;
+        const scaleY = nativeHeight / renderedHeight;
+
+        const x = Math.round((event.clientX - rect.left) * scaleX);
+        const y = Math.round((event.clientY - rect.top) * scaleY);
 
         if (followMode) {
             followMode = false;
@@ -299,19 +310,19 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!isController && hasControl) {
             hasControl = false;
             showToast("Another client took control.");
-        
+
             if (videoTip) {
                 tipHidden = false;
                 videoTip.classList.add("show");
                 videoTip.classList.remove("hidden");
-        
+
                 if (fadeTimeout) {
                     clearTimeout(fadeTimeout);
                     fadeTimeout = null;
                 }
             }
         }
-        
+
 
         // If you lost control
         if (!isController) {
@@ -322,7 +333,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 updateModeIndicator("Idle", "fa-circle", true);
                 showToast("Another client took control. Cursor follow stopped.");
             }
-            
+
             document.getElementById("motor1-slider").disabled = true;
             document.getElementById("motor2-slider").disabled = true;
 
@@ -343,11 +354,27 @@ document.addEventListener("DOMContentLoaded", function () {
         if (viewerEl) viewerEl.textContent = `👀 ${count} viewer${count !== 1 ? 's' : ''}`;
     });
 
+
+    const nativeWidth = 1920;
+    const nativeHeight = 1080;
+    const video = document.getElementById("video-feed");
+
+    function scaleCoords(x, y) {
+        const rect = video.getBoundingClientRect();
+        const scaleX = nativeWidth / rect.width;
+        const scaleY = nativeHeight / rect.height;
+        return {
+            x: Math.round(x * scaleX),
+            y: Math.round(y * scaleY)
+        };
+    }
+
     // 🔁 Follow Mode Stream
     setInterval(() => {
         if (!followMode || !isHovering || mouseX === null || mouseY === null) return;
         if (mouseX === lastSent.x && mouseY === lastSent.y) return;
         lastSent = { x: mouseX, y: mouseY };
-        socket.emit("click_target", { x: mouseX, y: mouseY });
+        const { x, y } = scaleCoords(mouseX, mouseY);
+        socket.emit("click_target", { x, y });
     }, 50);
 });

@@ -43,6 +43,7 @@ h2 i {
 }
 
 #loading-spinner {
+  display: block;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -53,7 +54,7 @@ h2 i {
   border-top: 6px solid #333;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  z-index: 5;
+  z-index: 9999;
   pointer-events: none;
 }
 
