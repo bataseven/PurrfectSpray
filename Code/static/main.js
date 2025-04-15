@@ -33,12 +33,13 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
     
+    document.getElementById("video-feed").onload = hideSpinner;
 
     setTimeout(() => {
         if (document.getElementById("video-feed").complete) {
             hideSpinner();
         }
-    }, 2000);
+    }, 3000);
 
     // Show tip after video is loaded
     document.getElementById("video-feed").onload = () => {
