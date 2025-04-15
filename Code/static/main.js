@@ -9,6 +9,11 @@ document.addEventListener("DOMContentLoaded", function () {
     const targetPositions = { 1: 0, 2: 0 };
     let followMode = false, mouseX = null, mouseY = null, isHovering = false, lastSent = { x: null, y: null };
 
+    let mySocketId = null;
+    socket.on("connect", () => {
+        mySocketId = socket.id;
+    });
+
     function hideSpinner() {
         document.getElementById("loading-spinner").style.display = 'none';
         document.getElementById("video-feed").style.display = 'inline';
@@ -245,6 +250,44 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         socket.emit("click_target", { x, y });
+    });
+
+    socket.on("controller_update", data => {
+        const activeSid = data.sid;
+        const isController = (activeSid === mySocketId);
+
+        // If you lost control
+        if (!isController) {
+            if (followMode) {
+                followMode = false;
+                document.getElementById("follow-mode-btn").innerHTML =
+                    '<i class="fas fa-mouse-pointer"></i> Start Cursor Follow';
+                updateModeIndicator("Idle", "fa-circle", true);
+                showToast("Another client took control. Cursor follow stopped.");
+            }
+
+            document.getElementById("motor1-slider").disabled = true;
+            document.getElementById("motor2-slider").disabled = true;
+
+            document.getElementById("follow-mode-btn").disabled = true;
+            document.getElementById("start-btn").disabled = true;
+
+            videoTip.style.display = "block";
+            setTimeout(() => {
+                videoTip.style.display = "none";
+            }, 3000);
+        } else {
+            document.getElementById("motor1-slider").disabled = false;
+            document.getElementById("motor2-slider").disabled = false;
+            document.getElementById("follow-mode-btn").disabled = false;
+            document.getElementById("start-btn").disabled = !isHoming; // Still respect homing
+        }
+    });
+
+    socket.on("viewer_count", data => {
+        const count = data.count;
+        const viewerEl = document.getElementById("viewer-count");
+        if (viewerEl) viewerEl.textContent = `👀 ${count} viewer${count !== 1 ? 's' : ''}`;
     });
 
     // 🔁 Follow Mode Stream

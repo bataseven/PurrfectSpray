@@ -10,7 +10,9 @@ import logging
 from logging.handlers import RotatingFileHandler
 from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector
 import threading
-import app_state
+import app_globals
+from flask_socketio import SocketIO
+
 
 logger = logging.getLogger("Camera")
 logger.setLevel(logging.INFO)
@@ -49,10 +51,6 @@ latest_frame = None
 
 def capture_and_process():
     global latest_frame, latest_detections
-    frame_count = 0
-    start_time = time.time()
-    last_fps_time = time.time()
-    fps = 0
 
     while True:
         try:
@@ -78,13 +76,6 @@ def capture_and_process():
                     cv2.putText(frame, "Target", (target_x, target_y - 15),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
-            current_time = time.time()
-            fps = 1 / (current_time - last_fps_time)
-            last_fps_time = current_time
-
-            # cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30),
-            #     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-
             with frame_lock:
                 latest_frame = frame.copy()
                 frame_available.set()
@@ -93,20 +84,42 @@ def capture_and_process():
             logger.exception("Exception in capture_and_process loop")
             time.sleep(2)
 
+# Shared JPEG
+jpeg_frame = None
+jpeg_frame_timestamp = 0
+jpeg_lock = threading.Lock()
+
+def encode_loop():
+    global jpeg_frame, jpeg_frame_timestamp
+    while True:
+        frame_available.wait(timeout=0.1)
+        with frame_lock:
+            frame = latest_frame.copy() if latest_frame is not None else None
+            frame_available.clear()
+
+        if frame is not None:
+            ret, buffer = cv2.imencode('.jpg', frame)
+            if ret:
+                with jpeg_lock:
+                    jpeg_frame = buffer.tobytes()
+                    jpeg_frame_timestamp = time.time()
+
+        time.sleep(1 / 20.0)  # 20 FPS max
+
 
 def generate_frames():
+    global jpeg_frame, jpeg_frame_timestamp
+    last_sent = 0
     while True:
-        got_frame = frame_available.wait(timeout=0.1)
-        with frame_lock:
-            if latest_frame is None:
+        with jpeg_lock:
+            if jpeg_frame is None or jpeg_frame_timestamp == last_sent:
+                time.sleep(0.001)
                 continue
-            ret, buffer = cv2.imencode('.jpg', latest_frame)
-            frame = buffer.tobytes()
+            frame = jpeg_frame
+            last_sent = jpeg_frame_timestamp
+
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        if got_frame:
-            frame_available.clear()
-        time.sleep(1 / 20.0)  # limit to 20 FPS
 
 
 def detect_in_background():
@@ -126,11 +139,11 @@ def detect_in_background():
                 latest_detections = detections
 
             for det in detections:
-                if app_state.auto_mode and det.label.lower() == app_state.tracking_target.lower():
+                if app_globals.auto_mode and det.label.lower() == app_globals.tracking_target.lower():
                     x = int((det.box[0] + det.box[2]) / 2)
                     y = int((det.box[1] + det.box[3]) / 2)
-                    app_state.latest_target_coords  = (x, y)
-                    app_state.target_lock.set()  # 🔁 signal motor loop to move
+                    app_globals.latest_target_coords  = (x, y)
+                    app_globals.target_lock.set()  # 🔁 signal motor loop to move
                     break  # only track the first match
 
         except Exception as e:
