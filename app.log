@@ -1637,3 +1637,51 @@ Traceback (most recent call last):
   File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
     raise GPIODeviceClosed(str(e))
 gpiozero.exc.GPIODeviceClosed: DigitalOutputDevice is closed or uninitialized
+2025-04-16 00:47:46,350 [INFO] Starting homing procedure
+2025-04-16 00:47:46,358 [INFO] Background threads started
+2025-04-16 00:48:03,002 [INFO] Homing procedure complete and speed limits set
+2025-04-16 00:48:03,003 [INFO] Homing complete
+2025-04-16 00:52:10,271 [INFO] Starting homing procedure
+2025-04-16 00:52:10,280 [INFO] Background threads started
+2025-04-16 00:52:27,239 [INFO] Homing procedure complete and speed limits set
+2025-04-16 00:52:27,240 [INFO] Homing complete
+2025-04-16 00:53:43,106 [ERROR] Error in fan_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: OutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 265, in fan_loop
+    fan_pin.off()
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 102, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-16 00:53:48,498 [INFO] Starting homing procedure
+2025-04-16 00:53:48,501 [INFO] Background threads started
+2025-04-16 00:54:05,362 [INFO] Homing procedure complete and speed limits set
+2025-04-16 00:54:05,363 [INFO] Homing complete
+2025-04-16 00:54:47,476 [INFO] Starting homing procedure
+2025-04-16 00:54:47,483 [INFO] Background threads started
+2025-04-16 00:55:03,873 [INFO] Homing procedure complete and speed limits set
+2025-04-16 00:55:03,874 [INFO] Homing complete
+2025-04-16 01:01:17,002 [INFO] Starting homing procedure
+2025-04-16 01:01:17,008 [INFO] Background threads started
+2025-04-16 01:01:34,298 [INFO] Homing procedure complete and speed limits set
+2025-04-16 01:01:34,299 [INFO] Homing complete

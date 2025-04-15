@@ -119,14 +119,29 @@ def detect_in_background():
 
             detections = detector.detect(frame)
 
-            with detection_lock:
-                latest_detections = detections
+            # Scale factor: YOLO resizes input to detector.size (e.g. 640)
+            scale_x = 1920 / detector.size
+            scale_y = 1080 / detector.size
 
+            scaled_detections = []
             for det in detections:
+                x1, y1, x2, y2 = det.box
+                # Rescale to match original resolution
+                x1 = int(x1 * scale_x)
+                y1 = int(y1 * scale_y)
+                x2 = int(x2 * scale_x)
+                y2 = int(y2 * scale_y)
+                det.box = (x1, y1, x2, y2)
+                scaled_detections.append(det)
+
+            with detection_lock:
+                latest_detections = scaled_detections
+
+            for det in scaled_detections:
                 if app_globals.auto_mode and det.label.lower() == app_globals.tracking_target.lower():
                     x = int((det.box[0] + det.box[2]) / 2)
                     y = int((det.box[1] + det.box[3]) / 2)
-                    app_globals.latest_target_coords  = (x, y)
+                    app_globals.latest_target_coords = (x, y)
                     app_globals.target_lock.set()  # 🔁 signal motor loop to move
                     break  # only track the first match
 

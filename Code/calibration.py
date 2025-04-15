@@ -8,9 +8,75 @@ from hardware import laser_pin
 # Set CALIBRATION_MODE early
 os.environ["CALIBRATION_MODE"] = "1"
 
-from camera import generate_frames, capture_and_process
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 
+import time
+import cv2
+from picamera2 import Picamera2
+import numpy as np
+from threading import Lock, Event
+import logging
+
+# Setup logger
+logger = logging.getLogger("Camera")
+logger.setLevel(logging.INFO)
+
+# These should be defined at module level
+frame_lock = Lock()
+frame_available = Event()
+latest_frame = None
+
+# Camera init
+try:
+    picam2 = Picamera2()
+    picam2.configure(picam2.create_preview_configuration(main={"format": 'XRGB8888', "size": (1920, 1080)}))
+    picam2.start()
+except Exception as e:
+    logger.exception("Failed to initialize Picamera2")
+    raise
+
+def capture_and_process():
+    global latest_frame
+    fps = 0
+    frame_count = 0
+    last_fps_time = time.time()
+
+    while True:
+        try:
+            # Capture and convert
+            frame = picam2.capture_array()
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+
+            # Optional: draw FPS
+            now = time.time()
+            fps = 1 / (now - last_fps_time)
+            last_fps_time = now
+            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+            # Store frame
+            with frame_lock:
+                latest_frame = frame.copy()
+                frame_available.set()
+
+        except Exception as e:
+            logger.exception("Exception in capture_and_process()")
+            time.sleep(2)  # slow down if camera fails
+
+
+def generate_frames():
+    while True:
+        got_frame = frame_available.wait(timeout=0.1)
+        with frame_lock:
+            if latest_frame is None:
+                continue
+            ret, buffer = cv2.imencode('.jpg', latest_frame)
+            frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        if got_frame:
+            frame_available.clear()
+        time.sleep(1 / 20.0)  # limit FPS
+        
 app = Flask(__name__)
 
 homing_complete = False
