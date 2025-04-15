@@ -4,7 +4,7 @@ import time
 import threading
 from flask import Flask, render_template, Response, request, jsonify
 from flask_socketio import SocketIO, emit
-from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame, detect_in_background
+from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame, detect_in_background, encode_loop
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from app_utils import get_cpu_temp, register_shutdown
@@ -13,10 +13,9 @@ import numpy as np
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-import app_state
+import app_globals
 from gevent import monkey
 monkey.patch_all(subprocess=False, thread=False)
-
 
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
@@ -33,9 +32,10 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+app_globals.socketio = socketio
 
 motor_active = False
-app_state.tracking_target= "person"  # default
+app_globals.tracking_target= "person"  # default
 homing_complete = False
 water_gun_active = False
 
@@ -54,10 +54,41 @@ def video_feed():
 
 @socketio.on('connect')
 def on_connect():
+    app_globals.viewer_count += 1
+    app_globals.socketio.emit("viewer_count", {"count": app_globals.viewer_count})
     print("[SOCKET] Client connected")
+
+    emit('motor_status', {
+        'status': f'Tracking {app_globals.tracking_target.capitalize()}' if app_globals.auto_mode else 'Idle',
+        'auto_mode': app_globals.auto_mode,
+        'target': app_globals.tracking_target
+    })
+
+    emit('laser_status', {
+        'status': 'On' if laser_pin.value else 'Off'
+    })
+
+@socketio.on('disconnect')
+def on_disconnect():
+    if app_globals.viewer_count > 0:
+        app_globals.viewer_count -= 1
+        app_globals.socketio.emit("viewer_count", {"count": app_globals.viewer_count})
+    if request.sid == app_globals.active_controller_sid:
+        print("[INFO] Releasing controller lock on disconnect")
+        app_globals.active_controller_sid = None
+        socketio.emit("controller_update", {"sid": None})
 
 @socketio.on('click_target')
 def handle_click_target(data):
+    if app_globals.auto_mode or not homing_complete:
+        return
+    
+    if app_globals.active_controller_sid is None:
+        app_globals.active_controller_sid = request.sid
+        socketio.emit("controller_update", {"sid": request.sid}) 
+    elif app_globals.active_controller_sid != request.sid:
+        return
+    
     if not homing_complete:
         return
     x = data.get('x')
@@ -128,13 +159,13 @@ def handle_shoot():
 
 @socketio.on('motor_control')
 def handle_motor_control(data):
-    import app_state
     global motor_active
 
     action = data.get('action')
-    target_class = data.get('target')  # Optional class
+    target_class = data.get('target')
 
     if not homing_complete:
+        # 🔁 Notify only the sender since system is not ready
         emit('motor_status', {
             'status': 'Not ready (homing in progress)',
             'auto_mode': False
@@ -143,20 +174,24 @@ def handle_motor_control(data):
 
     if action == 'start':
         motor_active = True
-        app_state.auto_mode = True
+        app_globals.active_controller_sid = request.sid
+        app_globals.auto_mode = True
         if target_class:
-            app_state.tracking_target = target_class
+            app_globals.tracking_target = target_class
 
-        emit('motor_status', {
-            'status': 'Running',
+        # 🔁 Notify all clients about Auto Mode start
+        socketio.emit('motor_status', {
+            'status': f'Tracking {app_globals.tracking_target.capitalize()}',
             'auto_mode': True,
-            'target': app_state.tracking_target
+            'target': app_globals.tracking_target
         })
 
     elif action == 'stop':
         motor_active = False
-        app_state.auto_mode = False
-        emit('motor_status', {
+        app_globals.auto_mode = False
+        app_globals.active_controller_sid = None
+        # 🔁 Notify all clients about Auto Mode stop
+        socketio.emit('motor_status', {
             'status': 'Auto Mode Stopped',
             'auto_mode': False
         })
@@ -164,12 +199,12 @@ def handle_motor_control(data):
     else:
         emit('motor_status', {
             'status': 'Unknown command',
-            'auto_mode': app_state.auto_mode
+            'auto_mode': app_globals.auto_mode
         })
 
 
+
 def motor_loop():
-    import app_state
     global homing_complete
 
     try:
@@ -182,10 +217,10 @@ def motor_loop():
         current_coords = None
 
         while True:
-            if motor_active and homing_complete and app_state.target_lock.is_set():
-                app_state.target_lock.clear()
+            if motor_active and homing_complete and app_globals.target_lock.is_set():
+                app_globals.target_lock.clear()
 
-                new_coords = app_state.latest_target_coords
+                new_coords = app_globals.latest_target_coords
                 if new_coords != (None, None):
                     current_coords = new_coords  # Snap to the latest target
 
@@ -245,7 +280,7 @@ def status_broadcast_loop():
                 'sensor1': not hall_sensor_1.value,
                 'sensor2': not hall_sensor_2.value
             })
-            time.sleep(0.5)
+            time.sleep(0.75)
     except Exception as e:
         logger.exception("Error in status_broadcast_loop")
 
@@ -257,6 +292,7 @@ def start_background_threads():
     threading.Thread(target=fan_loop, daemon=True).start()
     threading.Thread(target=status_broadcast_loop, daemon=True).start()
     threading.Thread(target=detect_in_background, daemon=True).start()
+    threading.Thread(target=encode_loop, daemon=True).start()
     logger.info("Background threads started")
 
 start_background_threads()
