@@ -84,42 +84,26 @@ def capture_and_process():
             logger.exception("Exception in capture_and_process loop")
             time.sleep(2)
 
-# Shared JPEG
-jpeg_frame = None
-jpeg_frame_timestamp = 0
-jpeg_lock = threading.Lock()
 
 def encode_loop():
-    global jpeg_frame, jpeg_frame_timestamp
+    
     while True:
-        frame_available.wait(timeout=0.1)
         with frame_lock:
-            frame = latest_frame.copy() if latest_frame is not None else None
-            frame_available.clear()
-
-        if frame is not None:
-            ret, buffer = cv2.imencode('.jpg', frame)
-            if ret:
-                with jpeg_lock:
-                    jpeg_frame = buffer.tobytes()
-                    jpeg_frame_timestamp = time.time()
-
-        time.sleep(1 / 20.0)  # 20 FPS max
+            if latest_frame is not None:
+                ret, buffer = cv2.imencode('.jpg', latest_frame)
+                if ret:
+                    with app_globals.jpeg_lock:
+                        app_globals.encoded_jpeg = buffer.tobytes()
+        time.sleep(1 / 20.0)  # This controls the frame rate
 
 
 def generate_frames():
-    global jpeg_frame, jpeg_frame_timestamp
-    last_sent = 0
     while True:
-        with jpeg_lock:
-            if jpeg_frame is None or jpeg_frame_timestamp == last_sent:
-                time.sleep(0.001)
-                continue
-            frame = jpeg_frame
-            last_sent = jpeg_frame_timestamp
-
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        with app_globals.jpeg_lock:
+            frame = app_globals.encoded_jpeg
+        if frame:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
 def detect_in_background():

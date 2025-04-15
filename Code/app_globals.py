@@ -16,5 +16,8 @@ viewer_count = 0
 # Lock for viewer count / controller access
 viewer_lock = Lock()
 
+jpeg_lock = Lock()
+encoded_jpeg : bytes = None
+
 # The client that is currently controlling the motors
 active_controller_sid = None

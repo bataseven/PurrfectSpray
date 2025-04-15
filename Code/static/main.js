@@ -21,6 +21,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (modeIndicator) {
             modeIndicator.style.display = 'block';
         }
+        const videoTip = document.getElementById("video-tip");
+
     }
 
     setTimeout(() => {
@@ -29,7 +31,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }, 2000);
 
-    document.getElementById("video-feed").onload = hideSpinner;
+    // Show tip after video is loaded
+    document.getElementById("video-feed").onload = () => {
+        hideSpinner(); // your existing logic
+        videoTip.classList.add("show");
+    };
 
     // 🔁 Target Button Selection
     document.querySelectorAll(".target-btn").forEach(btn => {
@@ -272,10 +278,15 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("follow-mode-btn").disabled = true;
             document.getElementById("start-btn").disabled = true;
 
-            videoTip.style.display = "block";
+            const videoTip = document.getElementById("video-tip");
+            videoTip.classList.add("show");
+            videoTip.classList.remove("hidden");
+            
             setTimeout(() => {
-                videoTip.style.display = "none";
+              videoTip.classList.remove("show");
+              setTimeout(() => videoTip.classList.add("hidden"), 1000);  // Wait for fade-out to finish
             }, 3000);
+            
         } else {
             document.getElementById("motor1-slider").disabled = false;
             document.getElementById("motor2-slider").disabled = false;

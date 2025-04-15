@@ -334,6 +334,9 @@ footer {
 }
 
 .video-tip {
+  opacity: 0;
+  transition: opacity 1s ease;
+  pointer-events: none;
   position: absolute;
   bottom: 10px;
   left: 10px;
@@ -343,9 +346,17 @@ footer {
   border-radius: 6px;
   font-size: 0.85em;
   z-index: 12;
-  pointer-events: none;
-  max-width: 90%;
 }
+
+.video-tip.show {
+  opacity: 1;
+}
+
+.video-tip.hidden {
+  pointer-events: none;
+  visibility: hidden;
+}
+
 
 .viewer-indicator {
   position: absolute;
