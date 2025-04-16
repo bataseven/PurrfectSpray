@@ -36,13 +36,13 @@ class LiveCameraTrack(VideoStreamTrack):
         frame = latest_zmq_frame.copy()
         video_frame = VideoFrame.from_ndarray(frame, format="bgr24")
         video_frame.pts, video_frame.time_base = await self.next_timestamp()
-        print("[RTC] Sending live ZMQ frame")
+        # print("[RTC] Sending live ZMQ frame")
         return video_frame
 
 
 async def zmq_receiver():
     global latest_zmq_frame
-    print("[ZMQ] Receiver started")
+    # print("[ZMQ] Receiver started")
     while True:
         try:
             data = await sub.recv()

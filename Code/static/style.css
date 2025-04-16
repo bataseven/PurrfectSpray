@@ -34,8 +34,9 @@ h2 i {
 #video-feed {
   width: 100%;
   height: auto;
-  max-height: 100vh;
-  object-fit: contain;  /* maintain aspect ratio */
+  max-height: 60vh;
+  object-fit: fill;
+  aspect-ratio: auto;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   display: block;  /* make sure it’s visible */

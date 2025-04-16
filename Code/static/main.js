@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
     
-        const res = await fetch("http://192.168.1.115:8080/offer", {
+        const res = await fetch("/offer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
