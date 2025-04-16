@@ -1,18 +1,17 @@
-#!/home/berke/yolo-env/bin/python
-
+import os
 import time
 import threading
-from flask import Flask, render_template, Response, request, jsonify
+import logging
+from logging.handlers import RotatingFileHandler
+
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
-from camera import generate_frames, capture_and_process, frame_lock, frame_available, latest_frame, detect_in_background, encode_loop
+
+from camera import capture_and_process, frame_lock, latest_frame, detect_in_background, encode_loop, stream_frames_over_zmq
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from app_utils import get_cpu_temp, register_shutdown
 import joblib
-import numpy as np
-import os
-import logging
-from logging.handlers import RotatingFileHandler
 import app_globals
 from gevent import monkey
 monkey.patch_all(subprocess=False, thread=False)
@@ -20,12 +19,10 @@ monkey.patch_all(subprocess=False, thread=False)
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
 
-# Console handler
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
 logger.addHandler(console_handler)
 
-# Rotating file handler (max 512 KB per file, keep 3 backups)
 file_handler = RotatingFileHandler("app.log", maxBytes=512*1024, backupCount=3)
 file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
 logger.addHandler(file_handler)
@@ -34,23 +31,19 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 app_globals.socketio = socketio
 
-motor_active = False
-app_globals.tracking_target= "person"  # default
-homing_complete = False
-water_gun_active = False
-
 script_dir = os.path.dirname(os.path.realpath(__file__))
 model_path = os.path.join(script_dir, 'model.pkl')
 model = joblib.load(model_path)
 
+pcs = set()
+
+motor_active = False
+homing_complete = False
+water_gun_active = False
 
 @app.route('/')
 def index():
     return render_template('index.html')
-
-@app.route('/video_feed')
-def video_feed():
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @socketio.on('connect')
 def on_connect():
@@ -293,6 +286,7 @@ def start_background_threads():
     threading.Thread(target=status_broadcast_loop, daemon=True).start()
     threading.Thread(target=detect_in_background, daemon=True).start()
     threading.Thread(target=encode_loop, daemon=True).start()
+    threading.Thread(target=stream_frames_over_zmq, daemon=True).start()
     logger.info("Background threads started")
 
 start_background_threads()
