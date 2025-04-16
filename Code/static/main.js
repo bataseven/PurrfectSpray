@@ -17,6 +17,46 @@ document.addEventListener("DOMContentLoaded", function () {
         mySocketId = socket.id;
     });
 
+    async function startWebRTC() {
+        const pc = new RTCPeerConnection();
+        const video = document.getElementById("video-feed");
+    
+        pc.addTransceiver("video", { direction: "recvonly" });
+    
+        pc.ontrack = (event) => {
+            console.log("[RTC] Video track received");
+            const stream = event.streams[0];
+            const video = document.getElementById("video-feed");
+            video.srcObject = stream;
+        
+            video.onloadedmetadata = () => {
+                video.play();
+                document.getElementById("video-feed").style.display = "block";
+                document.getElementById("loading-spinner").style.display = "none";
+                console.log("[RTC] Video playback started");
+            };
+        };
+    
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+    
+        const res = await fetch("http://192.168.1.115:8080/offer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                sdp: pc.localDescription.sdp,
+                type: pc.localDescription.type
+            })
+        });
+    
+        const answer = await res.json();
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    }
+    
+    
+
+    startWebRTC();
+
     videoTip = document.getElementById("video-tip");
 
     function hideSpinner() {

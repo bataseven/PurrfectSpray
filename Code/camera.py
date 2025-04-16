@@ -12,7 +12,10 @@ from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector
 import threading
 import app_globals
 from flask_socketio import SocketIO
-
+import zmq
+import base64
+import cv2
+import __main__
 
 logger = logging.getLogger("Camera")
 logger.setLevel(logging.INFO)
@@ -33,10 +36,15 @@ class_labels_path = os.path.join(script_dir, "model", "labelmap_voc.prototxt")
 latest_detections = []
 detection_lock = threading.Lock()
 
+
+picam2 = None
+
 try:
-    picam2 = Picamera2()
-    picam2.configure(picam2.create_preview_configuration(main={"format": 'XRGB8888', "size": (1920, 1080)}))
-    picam2.start()
+    if __main__.__file__.endswith("app.py"):
+        from picamera2 import Picamera2
+        picam2 = Picamera2()
+        picam2.configure(picam2.create_preview_configuration(main={"format": 'XRGB8888', "size": (1920, 1080)}))
+        picam2.start()
 except Exception as e:
     logger.exception("Failed to initialize camera")
     raise RuntimeError("Camera initialization failed") from e
@@ -105,6 +113,20 @@ def generate_frames():
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
+# Set up ZMQ publisher
+context = zmq.Context()
+socket = context.socket(zmq.PUB)
+socket.bind("tcp://*:5555")  # Bind to localhost port 5555
+
+def stream_frames_over_zmq():
+    global latest_frame
+    while True:
+        with frame_lock:
+            if latest_frame is not None:
+                _, buffer = cv2.imencode(".jpg", latest_frame)
+                jpg_bytes = base64.b64encode(buffer)
+                socket.send(jpg_bytes)
+        time.sleep(1 / 30)
 
 def detect_in_background():
     global latest_frame, latest_detections
