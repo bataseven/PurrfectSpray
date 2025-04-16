@@ -2,6 +2,7 @@ import os
 import time
 import threading
 import logging
+import requests
 from logging.handlers import RotatingFileHandler
 
 from flask import Flask, render_template, request, jsonify
@@ -44,6 +45,16 @@ water_gun_active = False
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route("/offer", methods=["POST"])
+def offer_proxy():
+    try:
+        webrtc_res = requests.post("http://localhost:8080/offer", json=request.get_json())
+        return jsonify(webrtc_res.json()), webrtc_res.status_code
+    except Exception as e:
+        logger.exception("Failed to forward WebRTC offer")
+        return jsonify({"error": "Failed to connect to WebRTC server"}), 500
+
 
 @socketio.on('connect')
 def on_connect():
