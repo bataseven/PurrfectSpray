@@ -53,8 +53,8 @@ document.addEventListener("DOMContentLoaded", function () {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
     }
     
-    
 
+    
     startWebRTC();
 
     videoTip = document.getElementById("video-tip");

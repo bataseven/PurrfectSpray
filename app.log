@@ -2974,3 +2974,161 @@ Traceback (most recent call last):
   File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
     raise GPIODeviceClosed(str(e))
 gpiozero.exc.GPIODeviceClosed: OutputDevice is closed or uninitialized
+2025-04-23 01:53:24,527 [INFO] Starting homing procedure
+2025-04-23 01:53:24,533 [INFO] Background threads started
+2025-04-23 01:53:29,479 [ERROR] Failed to forward WebRTC offer
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/urllib3/connection.py", line 174, in _new_conn
+    conn = connection.create_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/urllib3/util/connection.py", line 96, in create_connection
+    raise err
+  File "/usr/lib/python3/dist-packages/urllib3/util/connection.py", line 86, in create_connection
+    sock.connect(sa)
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/gevent/_socketcommon.py", line 586, in connect
+    self._internal_connect(address)
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/gevent/_socketcommon.py", line 630, in _internal_connect
+    raise _SocketError(err, strerror(err))
+ConnectionRefusedError: [Errno 111] Connection refused
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 705, in urlopen
+    httplib_response = self._make_request(
+                       ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 400, in _make_request
+    conn.request(method, url, **httplib_request_kw)
+  File "/usr/lib/python3/dist-packages/urllib3/connection.py", line 239, in request
+    super(HTTPConnection, self).request(method, url, body=body, headers=headers)
+  File "/usr/lib/python3.11/http/client.py", line 1282, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+  File "/usr/lib/python3.11/http/client.py", line 1328, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+  File "/usr/lib/python3.11/http/client.py", line 1277, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+  File "/usr/lib/python3.11/http/client.py", line 1037, in _send_output
+    self.send(msg)
+  File "/usr/lib/python3.11/http/client.py", line 975, in send
+    self.connect()
+  File "/usr/lib/python3/dist-packages/urllib3/connection.py", line 205, in connect
+    conn = self._new_conn()
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/urllib3/connection.py", line 186, in _new_conn
+    raise NewConnectionError(
+urllib3.exceptions.NewConnectionError: <urllib3.connection.HTTPConnection object at 0x7fff04147c90>: Failed to establish a new connection: [Errno 111] Connection refused
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/requests/adapters.py", line 667, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/urllib3/connectionpool.py", line 789, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/urllib3/util/retry.py", line 594, in increment
+    raise MaxRetryError(_pool, url, error or ResponseError(cause))
+urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8080): Max retries exceeded with url: /offer (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fff04147c90>: Failed to establish a new connection: [Errno 111] Connection refused'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 52, in offer_proxy
+    webrtc_res = requests.post("http://localhost:8080/offer", json=request.get_json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/requests/api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/berke/yolo-env/lib/python3.11/site-packages/requests/adapters.py", line 700, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8080): Max retries exceeded with url: /offer (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fff04147c90>: Failed to establish a new connection: [Errno 111] Connection refused'))
+2025-04-23 01:53:39,223 [ERROR] Error during homing_procedure
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 563, in _read
+    return self._state_to_value(self.pin.state)
+                                ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: DigitalInputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 77, in homing_procedure
+    home_motor(Motor2, hall_sensor_2, 2)
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 54, in home_motor
+    while read_sensor():
+          ^^^^^^^^^^^^^
+  File "/home/berke/Desktop/PurrfectSpray/Code/motors.py", line 36, in read_sensor
+    return not hall_sensor.value
+               ^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 602, in value
+    return self._read()
+           ^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 565, in _read
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: DigitalInputDevice is closed or uninitialized
+2025-04-23 01:53:39,227 [INFO] Homing complete
+2025-04-23 01:53:39,329 [ERROR] Error in motor_loop
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 87, in _write
+    self.pin.state = self._value_to_state(value)
+    ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'state'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 584, in _check_open
+    super()._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 213, in _check_open
+    raise DeviceClosed(
+gpiozero.exc.DeviceClosed: DigitalOutputDevice is closed or uninitialized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/berke/Desktop/PurrfectSpray/Code/app.py", line 271, in motor_loop
+    Motor2.run()
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 134, in run
+    if self.run_speed():
+       ^^^^^^^^^^^^^^^^
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 75, in run_speed
+    self.step(self._currentPos)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 180, in step
+    self.step1(step)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 212, in step1
+    self.set_output_pins(0b10 if self._direction else 0b00)
+  File "/home/berke/Desktop/PurrfectSpray/Code/AccelStepper.py", line 203, in set_output_pins
+    self._pins[i].off() if not self._pinInverted[i] else self._pins[i].on()
+    ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 214, in off
+    self._write(False)
+  File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 89, in _write
+    self._check_open()
+  File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 587, in _check_open
+    raise GPIODeviceClosed(str(e))
+gpiozero.exc.GPIODeviceClosed: DigitalOutputDevice is closed or uninitialized
+2025-04-23 01:54:44,230 [INFO] Starting homing procedure
+2025-04-23 01:54:44,245 [INFO] Background threads started
+2025-04-23 01:55:00,732 [INFO] Homing procedure complete and speed limits set
+2025-04-23 01:55:00,733 [INFO] Homing complete

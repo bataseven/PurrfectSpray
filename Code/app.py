@@ -58,6 +58,10 @@ def offer_proxy():
 
 @socketio.on('connect')
 def on_connect():
+    if app_globals.viewer_count == 0:
+        if not laser_pin.value:
+            laser_pin.on()
+            socketio.emit('laser_status', {'status': 'On'})
     app_globals.viewer_count += 1
     app_globals.socketio.emit("viewer_count", {"count": app_globals.viewer_count})
     print("[SOCKET] Client connected")
@@ -81,6 +85,22 @@ def on_disconnect():
         print("[INFO] Releasing controller lock on disconnect")
         app_globals.active_controller_sid = None
         socketio.emit("controller_update", {"sid": None})
+        
+    if app_globals.viewer_count == 0:
+        app_globals.target_lock.clear()
+        app_globals.latest_target_coords = (None, None)
+        app_globals.auto_mode = False
+        app_globals.tracking_target = None
+        socketio.emit('motor_status', {
+            'status': 'Idle',
+            'auto_mode': False,
+            'target': None
+        })
+        # Turn off the laser if no viewers are connected
+        if laser_pin.value:
+            laser_pin.off()
+            socketio.emit('laser_status', {'status': 'Off'})
+
 
 @socketio.on('click_target')
 def handle_click_target(data):
