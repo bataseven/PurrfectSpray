@@ -146,8 +146,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    document.getElementById("video-feed").onload = hideSpinner;
-
     setTimeout(() => {
         if (document.getElementById("video-feed").complete) {
             hideSpinner();
