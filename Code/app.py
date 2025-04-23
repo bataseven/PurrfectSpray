@@ -13,7 +13,7 @@ from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from app_utils import get_cpu_temp, register_shutdown
 import joblib
-import app_globals
+from app_state import app_state
 from gevent import monkey
 monkey.patch_all(subprocess=False, thread=False)
 
@@ -30,7 +30,7 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
-app_globals.socketio = socketio
+app_state.socketio = socketio
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 model_path = os.path.join(script_dir, 'model.pkl')
@@ -58,18 +58,18 @@ def offer_proxy():
 
 @socketio.on('connect')
 def on_connect():
-    if app_globals.viewer_count == 0:
+    if app_state.viewer_count == 0:
         if not laser_pin.value:
             laser_pin.on()
             socketio.emit('laser_status', {'status': 'On'})
-    app_globals.viewer_count += 1
-    app_globals.socketio.emit("viewer_count", {"count": app_globals.viewer_count})
+    app_state.viewer_count += 1
+    app_state.socketio.emit("viewer_count", {"count": app_state.viewer_count})
     print("[SOCKET] Client connected")
 
     emit('motor_status', {
-        'status': f'Tracking {app_globals.tracking_target.capitalize()}' if app_globals.auto_mode else 'Idle',
-        'auto_mode': app_globals.auto_mode,
-        'target': app_globals.tracking_target
+        'status': f'Tracking {app_state.tracking_target.capitalize()}' if app_state.auto_mode else 'Idle',
+        'auto_mode': app_state.auto_mode,
+        'target': app_state.tracking_target
     })
 
     emit('laser_status', {
@@ -78,19 +78,19 @@ def on_connect():
 
 @socketio.on('disconnect')
 def on_disconnect():
-    if app_globals.viewer_count > 0:
-        app_globals.viewer_count -= 1
-        app_globals.socketio.emit("viewer_count", {"count": app_globals.viewer_count})
-    if request.sid == app_globals.active_controller_sid:
+    if app_state.viewer_count > 0:
+        app_state.viewer_count -= 1
+        app_state.socketio.emit("viewer_count", {"count": app_state.viewer_count})
+    if request.sid == app_state.active_controller_sid:
         print("[INFO] Releasing controller lock on disconnect")
-        app_globals.active_controller_sid = None
+        app_state.active_controller_sid = None
         socketio.emit("controller_update", {"sid": None})
         
-    if app_globals.viewer_count == 0:
-        app_globals.target_lock.clear()
-        app_globals.latest_target_coords = (None, None)
-        app_globals.auto_mode = False
-        app_globals.tracking_target = None
+    if app_state.viewer_count == 0:
+        app_state.target_lock.clear()
+        app_state.latest_target_coords = (None, None)
+        app_state.auto_mode = False
+        app_state.tracking_target = None
         socketio.emit('motor_status', {
             'status': 'Idle',
             'auto_mode': False,
@@ -104,13 +104,13 @@ def on_disconnect():
 
 @socketio.on('click_target')
 def handle_click_target(data):
-    if app_globals.auto_mode or not homing_complete:
+    if app_state.auto_mode or not homing_complete:
         return
     
-    if app_globals.active_controller_sid is None:
-        app_globals.active_controller_sid = request.sid
+    if app_state.active_controller_sid is None:
+        app_state.active_controller_sid = request.sid
         socketio.emit("controller_update", {"sid": request.sid}) 
-    elif app_globals.active_controller_sid != request.sid:
+    elif app_state.active_controller_sid != request.sid:
         return
     
     if not homing_complete:
@@ -198,22 +198,22 @@ def handle_motor_control(data):
 
     if action == 'start':
         motor_active = True
-        app_globals.active_controller_sid = request.sid
-        app_globals.auto_mode = True
+        app_state.active_controller_sid = request.sid
+        app_state.auto_mode = True
         if target_class:
-            app_globals.tracking_target = target_class
+            app_state.tracking_target = target_class
 
         # 🔁 Notify all clients about Auto Mode start
         socketio.emit('motor_status', {
-            'status': f'Tracking {app_globals.tracking_target.capitalize()}',
+            'status': f'Tracking {app_state.tracking_target.capitalize()}',
             'auto_mode': True,
-            'target': app_globals.tracking_target
+            'target': app_state.tracking_target
         })
 
     elif action == 'stop':
         motor_active = False
-        app_globals.auto_mode = False
-        app_globals.active_controller_sid = None
+        app_state.auto_mode = False
+        app_state.active_controller_sid = None
         # 🔁 Notify all clients about Auto Mode stop
         socketio.emit('motor_status', {
             'status': 'Auto Mode Stopped',
@@ -223,7 +223,7 @@ def handle_motor_control(data):
     else:
         emit('motor_status', {
             'status': 'Unknown command',
-            'auto_mode': app_globals.auto_mode
+            'auto_mode': app_state.auto_mode
         })
 
 
@@ -241,10 +241,10 @@ def motor_loop():
         current_coords = None
 
         while True:
-            if motor_active and homing_complete and app_globals.target_lock.is_set():
-                app_globals.target_lock.clear()
+            if motor_active and homing_complete and app_state.target_lock.is_set():
+                app_state.target_lock.clear()
 
-                new_coords = app_globals.latest_target_coords
+                new_coords = app_state.latest_target_coords
                 if new_coords != (None, None):
                     current_coords = new_coords  # Snap to the latest target
 

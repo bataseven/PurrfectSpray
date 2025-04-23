@@ -3132,3 +3132,15 @@ gpiozero.exc.GPIODeviceClosed: DigitalOutputDevice is closed or uninitialized
 2025-04-23 01:54:44,245 [INFO] Background threads started
 2025-04-23 01:55:00,732 [INFO] Homing procedure complete and speed limits set
 2025-04-23 01:55:00,733 [INFO] Homing complete
+2025-04-23 15:50:51,545 [INFO] Starting homing procedure
+2025-04-23 15:50:51,561 [INFO] Background threads started
+2025-04-23 15:51:07,046 [INFO] Homing procedure complete and speed limits set
+2025-04-23 15:51:07,046 [INFO] Homing complete
+2025-04-23 15:54:14,205 [INFO] Starting homing procedure
+2025-04-23 15:54:14,216 [INFO] Background threads started
+2025-04-23 15:54:29,489 [INFO] Homing procedure complete and speed limits set
+2025-04-23 15:54:29,490 [INFO] Homing complete
+2025-04-23 16:02:30,166 [INFO] Starting homing procedure
+2025-04-23 16:02:30,174 [INFO] Background threads started
+2025-04-23 16:02:46,405 [INFO] Homing procedure complete and speed limits set
+2025-04-23 16:02:46,406 [INFO] Homing complete

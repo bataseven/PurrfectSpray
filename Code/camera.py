@@ -10,7 +10,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector
 import threading
-import app_globals
+from app_state import app_state
 from flask_socketio import SocketIO
 import zmq
 import base64
@@ -100,15 +100,15 @@ def encode_loop():
             if latest_frame is not None:
                 ret, buffer = cv2.imencode('.jpg', latest_frame)
                 if ret:
-                    with app_globals.jpeg_lock:
-                        app_globals.encoded_jpeg = buffer.tobytes()
+                    with app_state.jpeg_lock:
+                        app_state.encoded_jpeg = buffer.tobytes()
         time.sleep(1 / 20.0)  # This controls the frame rate
 
 
 def generate_frames():
     while True:
-        with app_globals.jpeg_lock:
-            frame = app_globals.encoded_jpeg
+        with app_state.jpeg_lock:
+            frame = app_state.encoded_jpeg
         if frame:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
@@ -160,11 +160,11 @@ def detect_in_background():
                 latest_detections = scaled_detections
 
             for det in scaled_detections:
-                if app_globals.auto_mode and det.label.lower() == app_globals.tracking_target.lower():
+                if app_state.auto_mode and det.label.lower() == app_state.tracking_target.lower():
                     x = int((det.box[0] + det.box[2]) / 2)
                     y = int((det.box[1] + det.box[3]) / 2)
-                    app_globals.latest_target_coords = (x, y)
-                    app_globals.target_lock.set()  # 🔁 signal motor loop to move
+                    app_state.latest_target_coords = (x, y)
+                    app_state.target_lock.set()  # 🔁 signal motor loop to move
                     break  # only track the first match
 
         except Exception as e:
