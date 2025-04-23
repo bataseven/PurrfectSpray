@@ -1,3 +1,5 @@
+from gevent import monkey
+monkey.patch_all(subprocess=False, thread=False)
 import os
 import time
 import threading
@@ -5,17 +7,16 @@ import logging
 import requests
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from flask_socketio import SocketIO, emit
-
+from dotenv import load_dotenv
 from camera import capture_and_process, frame_lock, latest_frame, detect_in_background, encode_loop, stream_frames_over_zmq
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from app_utils import get_cpu_temp, register_shutdown
 import joblib
 from app_state import app_state
-from gevent import monkey
-monkey.patch_all(subprocess=False, thread=False)
+from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
 
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
@@ -42,7 +43,54 @@ motor_active = False
 homing_complete = False
 water_gun_active = False
 
+# Load environment variables
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY")
+WEB_PASSWORD = os.getenv("WEB_PASSWORD")
+
+app.secret_key = SECRET_KEY
+
+# Setup login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+# Simple in-memory user model
+class User(UserMixin):
+    def __init__(self, id):
+        self.id = id
+
+# For Flask-Login to find the current user
+@login_manager.user_loader
+def load_user(user_id):
+    return User(user_id)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        password = request.form.get("password")
+        remember = "remember" in request.form
+
+        if password == WEB_PASSWORD:
+            user = User("admin")
+            login_user(user, remember=remember)
+            flash("Login successful!", "success")
+            return redirect(url_for("index"))
+        else:
+            flash("Incorrect password.", "danger")
+
+    return render_template("login.html")
+
+# Logout route
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
