@@ -16,3 +16,5 @@ env/
 # Ignore compiled libraries and system junk
 *.so
 .DS_Store
+
+.env
