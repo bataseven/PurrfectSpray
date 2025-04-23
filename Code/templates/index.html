@@ -4,12 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cat Detection Stream</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
   <script src="{{ url_for('static', filename='socketio.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <title>{{ "Admin - " if is_admin else "" }}Cat Detection System</title>
 </head>
 
 <body>
@@ -63,8 +63,8 @@
     </div>
   </div>
 
+  <div class="control-panel {% if not is_admin %}hidden{% endif %}">
 
-  <div class="control-panel">
 
     <!-- System Status -->
     <div class="control-section">
@@ -118,6 +118,9 @@
 
   <footer>
     &copy; 2025 Cat Defense Systems. All rights reserved.
+    <a href="{{ url_for('logout') }}" class="logout-btn">
+      <i class="fas fa-sign-out-alt"></i> Logout
+    </a>
   </footer>
 
   <script src="{{ url_for('static', filename='main.js') }}"></script>

@@ -186,12 +186,6 @@ input[type="range"]::-webkit-slider-thumb {
   color: #004085;
 }
 
-footer {
-  text-align: center;
-  padding: 20px;
-  font-size: 14px;
-  color: #777;
-}
 
 /* Stack controls vertically and center on mobile */
 @media (max-width: 768px) {
@@ -381,4 +375,29 @@ footer {
   font-size: 0.9em;
   z-index: 15;
   pointer-events: none;
+}
+
+.hidden {
+  display: none !important;
+}
+
+footer {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.95rem;
+  color: #555;
+  position: relative;
+}
+
+.logout-btn {
+  display: inline-block;
+  margin-left: 1rem;
+  text-decoration: none;
+  color: #4a90e2;
+  font-weight: bold;
+  transition: color 0.3s ease;
+}
+
+.logout-btn:hover {
+  color: #357ab8;
 }

@@ -7,7 +7,7 @@ import logging
 import requests
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash, get_flashed_messages
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 from camera import capture_and_process, frame_lock, latest_frame, detect_in_background, encode_loop, stream_frames_over_zmq
@@ -65,15 +65,23 @@ class User(UserMixin):
 def load_user(user_id):
     return User(user_id)
 
+WEB_PASSWORD = os.getenv("WEB_PASSWORD")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    session.pop('_flashes', None)
     if request.method == "POST":
         password = request.form.get("password")
         remember = "remember" in request.form
 
-        if password == WEB_PASSWORD:
+        if password in [WEB_PASSWORD, ADMIN_PASSWORD]:
             user = User("admin")
             login_user(user, remember=remember)
+
+            # ✅ Only set admin flag for admin password
+            session["is_admin"] = (password == ADMIN_PASSWORD)
+
             flash("Login successful!", "success")
             return redirect(url_for("index"))
         else:
@@ -81,18 +89,19 @@ def login():
 
     return render_template("login.html")
 
-# Logout route
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
+    session.pop('_flashes', None)
     return redirect(url_for("login"))
 
 
-@app.route('/')
+@app.route("/")
 @login_required
 def index():
-    return render_template('index.html')
+    is_admin = session.get("is_admin", False)
+    return render_template("index.html", is_admin=is_admin)
 
 @app.route("/offer", methods=["POST"])
 def offer_proxy():
@@ -183,6 +192,12 @@ def handle_click_target(data):
 @socketio.on('set_motor_position')
 def handle_set_motor_position(data):
     if not homing_complete:
+        return
+    if not session.get("is_admin"):
+        emit('motor_status', {
+            'status': 'Unauthorized',
+            'auto_mode': False
+        })
         return
     motor_num = data.get('motor')
     position_deg = data.get('position')
