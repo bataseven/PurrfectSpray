@@ -17,6 +17,8 @@ document.addEventListener("DOMContentLoaded", function () {
         mySocketId = socket.id;
     });
 
+    videoTip = document.getElementById("video-tip");
+
     let webrtcConnected = false;
     let streamMonitorInterval = null;
 
@@ -32,7 +34,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (hasVideo && currentTime === lastVideoTime) {
             staleCounter++;
-            if (staleCounter > 5) {  // ~5 seconds of no change
+            if (staleCounter > 3) {  // ~5 seconds of no change
                 console.warn("[RTC] Stream appears to have stalled");
                 showSpinner("Reconnecting...");
                 webrtcConnected = false;
@@ -42,9 +44,13 @@ document.addEventListener("DOMContentLoaded", function () {
             staleCounter = 0;
             lastVideoTime = currentTime;
         }
-    }, 1000);
-
+    }, 1500);
+    
+    let retryInProgress = false;
     async function startWebRTCWithRetry(timeoutMs = 10000) {
+        if (retryInProgress) return;
+        retryInProgress = true;
+
         const startTime = Date.now();
         const video = document.getElementById("video-feed");
         let attempts = 0;
@@ -67,6 +73,7 @@ document.addEventListener("DOMContentLoaded", function () {
         video.style.pointerEvents = "none";
     }
 
+
     async function startWebRTC() {
         return new Promise(async (resolve, reject) => {
             const pc = new RTCPeerConnection();
@@ -87,6 +94,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     webrtcConnected = true;
                     console.log("[RTC] Video playback started");
                     resolve();
+                    if (videoTip && !tipHidden) {
+                        videoTip.classList.add("show");
+                        videoTip.classList.remove("hidden");
+                    }
                 };
             };
 
@@ -113,15 +124,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
     startWebRTCWithRetry();
 
-    videoTip = document.getElementById("video-tip");
 
     function showSpinner(message = "Loading...") {
         const spinner = document.getElementById("loading-spinner");
         if (spinner) {
             spinner.style.display = "block";
-            spinner.innerHTML = '<div class="spinner-ring"></div><div class="spinner-text">${message}</div>';
+    
+            const text = spinner.querySelector(".spinner-text");
+            if (text) text.textContent = message;
         }
-
+    
         const video = document.getElementById("video-feed");
         if (video) {
             video.style.pointerEvents = "none";
