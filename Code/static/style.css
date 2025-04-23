@@ -43,24 +43,34 @@ h2 i {
 }
 
 #loading-spinner {
-  display: block;
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
-  border: 6px solid #ccc;
-  border-top: 6px solid #333;
+  text-align: center;
+  z-index: 10;
+}
+
+.spinner-circle {
+  border: 8px solid #f3f3f3;
+  border-top: 8px solid #4a90e2;
   border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto;
   animation: spin 1s linear infinite;
-  z-index: 9999;
-  pointer-events: none;
+}
+
+.spinner-text {
+  margin-top: 12px;
+  font-size: 1rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
 }
 
 @keyframes spin {
-  0% { transform: translate(-50%, -50%) rotate(0deg); }
-  100% { transform: translate(-50%, -50%) rotate(360deg); }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Controls */

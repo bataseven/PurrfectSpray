@@ -17,47 +17,117 @@ document.addEventListener("DOMContentLoaded", function () {
         mySocketId = socket.id;
     });
 
-    async function startWebRTC() {
-        const pc = new RTCPeerConnection();
-        const video = document.getElementById("video-feed");
-    
-        pc.addTransceiver("video", { direction: "recvonly" });
-    
-        pc.ontrack = (event) => {
-            console.log("[RTC] Video track received");
-            const stream = event.streams[0];
-            const video = document.getElementById("video-feed");
-            video.srcObject = stream;
-        
-            video.onloadedmetadata = () => {
-                video.play();
-                document.getElementById("video-feed").style.display = "block";
-                document.getElementById("loading-spinner").style.display = "none";
-                console.log("[RTC] Video playback started");
-            };
-        };
-    
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-    
-        const res = await fetch("/offer", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                sdp: pc.localDescription.sdp,
-                type: pc.localDescription.type
-            })
-        });
-    
-        const answer = await res.json();
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-    }
-    
+    let webrtcConnected = false;
+    let streamMonitorInterval = null;
 
-    
-    startWebRTC();
+    let lastVideoTime = 0;
+    let staleCounter = 0;
+
+    setInterval(() => {
+        const video = document.getElementById("video-feed");
+        if (!video || !video.srcObject) return;
+
+        const currentTime = video.currentTime;
+        const hasVideo = video.readyState >= 2;
+
+        if (hasVideo && currentTime === lastVideoTime) {
+            staleCounter++;
+            if (staleCounter > 5) {  // ~5 seconds of no change
+                console.warn("[RTC] Stream appears to have stalled");
+                showSpinner("Reconnecting...");
+                webrtcConnected = false;
+                startWebRTCWithRetry();
+            }
+        } else {
+            staleCounter = 0;
+            lastVideoTime = currentTime;
+        }
+    }, 1000);
+
+    async function startWebRTCWithRetry(timeoutMs = 10000) {
+        const startTime = Date.now();
+        const video = document.getElementById("video-feed");
+        let attempts = 0;
+        webrtcConnected = false;
+
+        while (!webrtcConnected && Date.now() - startTime < timeoutMs) {
+            attempts++;
+            console.log(`[RTC] Attempt ${attempts} to connect...`);
+            try {
+                await startWebRTC();
+                return;
+            } catch (err) {
+                console.warn("[RTC] Connection failed, retrying...", err);
+                await new Promise(res => setTimeout(res, 1000));
+            }
+        }
+
+        // Timeout fallback
+        showSpinner("⚠️ Video stream unavailable.<br>Please try refreshing.");
+        video.style.pointerEvents = "none";
+    }
+
+    async function startWebRTC() {
+        return new Promise(async (resolve, reject) => {
+            const pc = new RTCPeerConnection();
+            const video = document.getElementById("video-feed");
+
+            pc.addTransceiver("video", { direction: "recvonly" });
+
+            pc.ontrack = (event) => {
+                console.log("[RTC] Video track received");
+                const stream = event.streams[0];
+                video.srcObject = stream;
+
+                video.onloadedmetadata = () => {
+                    video.play();
+                    video.style.display = "block";
+                    document.getElementById("loading-spinner").style.display = "none";
+                    video.style.pointerEvents = "auto";
+                    webrtcConnected = true;
+                    console.log("[RTC] Video playback started");
+                    resolve();
+                };
+            };
+
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                const res = await fetch("/offer", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sdp: pc.localDescription.sdp,
+                        type: pc.localDescription.type
+                    })
+                });
+
+                if (!res.ok) throw new Error("Offer failed");
+                const answer = await res.json();
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+
+    startWebRTCWithRetry();
 
     videoTip = document.getElementById("video-tip");
+
+    function showSpinner(message = "Loading...") {
+        const spinner = document.getElementById("loading-spinner");
+        if (spinner) {
+            spinner.style.display = "block";
+            spinner.innerHTML = '<div class="spinner-ring"></div><div class="spinner-text">${message}</div>';
+        }
+
+        const video = document.getElementById("video-feed");
+        if (video) {
+            video.style.pointerEvents = "none";
+            video.style.display = "none";
+        }
+    }
 
     function hideSpinner() {
         const spinner = document.getElementById("loading-spinner");
