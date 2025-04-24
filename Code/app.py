@@ -157,6 +157,11 @@ def on_disconnect():
         if laser_pin.value:
             laser_pin.off()
             socketio.emit('laser_status', {'status': 'Off'})
+    elif app_state.viewer_count == 1:
+        # If only one viewer is left, turn on the laser
+        if not laser_pin.value:
+            laser_pin.on()
+            socketio.emit('laser_status', {'status': 'On'})
 
 
 @socketio.on('click_target')
