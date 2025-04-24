@@ -29,6 +29,8 @@
 
   <button onclick="toggleLaser()">Toggle Laser</button>
   <button onclick="recordPoint()" disabled id="record-btn">Record Calibration Point</button>
+  <button onclick="startAutoCalibration()" id="auto-calibrate-btn">Start Auto Calibration</button>
+
   <div id="status">Homing motors...</div>
 
   <script>
@@ -81,6 +83,17 @@
       lastPixel = { x, y };
       document.getElementById('coords').textContent = `Selected pixel: (${x}, ${y})`;
     });
+
+    function startAutoCalibration() {
+      fetch('/start_auto_calibration')
+        .then(res => res.json())
+        .then(data => {
+        })
+        .catch(err => {
+          alert("Failed to start auto calibration.");
+          console.error(err);
+        });
+    }
 
     function recordPoint() {
       if (!lastPixel) {

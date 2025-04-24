@@ -23,6 +23,10 @@ class AppState:
         # JPEG stream encoding
         self.encoded_jpeg: Optional[bytes] = None
         self.jpeg_lock = Lock()
+        
+        self.homing_complete = False
+        self.auto_calibrating = False
+        self.last_laser_pixel = None
 
 # Singleton instance to import everywhere
 app_state = AppState()

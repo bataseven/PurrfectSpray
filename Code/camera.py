@@ -70,7 +70,6 @@ def capture_and_process():
                 detections_copy = list(latest_detections)
 
             selected_label = app_state.tracking_target.lower() if app_state.tracking_target else None
-            print(f"Selected label: {selected_label}")
             
             for i, det in enumerate(detections_copy):
                 color = highlight_colors[det.class_id % len(highlight_colors)]

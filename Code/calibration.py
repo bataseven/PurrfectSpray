@@ -4,7 +4,7 @@ import threading
 import json
 from flask import Flask, render_template, request, jsonify, Response
 from hardware import laser_pin
-
+from app_state import app_state
 # Set CALIBRATION_MODE early
 os.environ["CALIBRATION_MODE"] = "1"
 
@@ -25,6 +25,8 @@ logger.setLevel(logging.INFO)
 frame_lock = Lock()
 frame_available = Event()
 latest_frame = None
+
+app = Flask(__name__)
 
 # Camera init
 try:
@@ -65,21 +67,42 @@ def capture_and_process():
 
 def generate_frames():
     while True:
-        got_frame = frame_available.wait(timeout=0.1)
         with frame_lock:
             if latest_frame is None:
+                time.sleep(0.01)
                 continue
-            ret, buffer = cv2.imencode('.jpg', latest_frame)
-            frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        if got_frame:
-            frame_available.clear()
-        time.sleep(1 / 20.0)  # limit FPS
-        
-app = Flask(__name__)
+            frame = latest_frame.copy()
 
-homing_complete = False
+        # 🔍 Convert to HSV
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # 🎯 Define red thresholds
+        lower_red1 = np.array([0, 120, 200])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([160, 120, 200])
+        upper_red2 = np.array([180, 255, 255])
+
+        # 🟥 Get red mask
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        red_mask = cv2.bitwise_or(mask1, mask2)
+
+        # 🔧 Optional: apply dilation to make red blobs more visible
+        red_mask = cv2.dilate(red_mask, None, iterations=2)
+
+        green_overlay = cv2.merge([np.zeros_like(red_mask), red_mask, np.zeros_like(red_mask)])
+
+        # 🧠 Overlay the mask with transparency
+        overlayed = cv2.addWeighted(frame, 1.0, green_overlay, 1, 0)
+
+        # 🧃 Encode and stream
+        ret, buffer = cv2.imencode('.jpg', overlayed)
+        if not ret:
+            continue
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        
+
 theta1 = 0
 theta2 = 0
 calibration_file = "calibration.json"
@@ -99,13 +122,63 @@ def toggle_laser():
     return jsonify({'status': status})
 
 
+@app.route('/start_auto_calibration')
+def start_auto_calibration():
+    if not app_state.homing_complete:
+        return jsonify({"message": "Please wait for homing to complete."}), 400
+
+    if getattr(app_state, "auto_calibrating", False):
+        return jsonify({"message": "Calibration is already running."}), 400
+
+    def auto_calibration_worker():
+        print("[INFO] Starting auto calibration...")
+        app_state.auto_calibrating = True
+
+        # Load existing data if any
+        filename = "calibration.json"
+        if os.path.exists(filename):
+            with open(filename, "r") as f:
+                data = json.load(f)
+        else:
+            data = []
+
+        theta1_start = Motor1.current_position() * DEGREES_PER_STEP_1
+        theta2_start = Motor2.current_position() * DEGREES_PER_STEP_2
+
+        for delta1 in range(-5, 6, 3):  # include +5 too
+            for delta2 in range(-5, 6, 3):
+                theta1 = theta1_start + delta1
+                theta2 = theta2_start + delta2
+
+                move_motor_to_position(1, theta1)
+                move_motor_to_position(2, theta2)
+                time.sleep(1.0)  # allow time to settle
+
+                if app_state.last_laser_pixel:
+                    px, py = app_state.last_laser_pixel
+                    entry = {
+                        "pixel": [int(px), int(py)],
+                        "angles": [round(theta1, 3), round(theta2, 3)]
+                    }
+                    data.append(entry)
+                    print(f"Recorded: {entry}")
+
+        with open(filename, "w") as f:
+            json.dump(data, f, indent=2)
+
+        print("[INFO] Auto calibration complete.")
+        app_state.auto_calibrating = False
+
+    threading.Thread(target=auto_calibration_worker, daemon=True).start()
+    return jsonify({"message": "Auto calibration started."})
+
 @app.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/homing_status')
 def homing_status():
-    return jsonify({'complete': homing_complete})
+    return jsonify({'complete': app_state.homing_complete})
 
 @app.route('/set_angles', methods=['POST'])
 def set_angles():
@@ -153,11 +226,7 @@ def record_point():
 
     return jsonify({'status': 'recorded', 'point': point})
 
-@app.route('/set_motor_position')
-def set_motor_position():
-    motor_num = request.args.get('motor', type=int)
-    position_deg = request.args.get('position', type=float)
-
+def move_motor_to_position(motor_num, position_deg):
     if motor_num == 1:
         steps = int(position_deg / DEGREES_PER_STEP_1)
         Motor1.move_to(steps)
@@ -165,24 +234,64 @@ def set_motor_position():
         steps = int(position_deg / DEGREES_PER_STEP_2)
         Motor2.move_to(steps)
 
+@app.route('/set_motor_position')
+def set_motor_position():
+    motor_num = request.args.get('motor', type=int)
+    position_deg = request.args.get('position', type=float)
+    move_motor_to_position(motor_num, position_deg)
     return jsonify({'status': f'Motor {motor_num} set to {position_deg} degrees'})
+
+
+def detect_laser_dot():
+    global latest_frame
+    while True:
+        with frame_lock:
+            if latest_frame is None:
+                time.sleep(0.05)
+                continue
+            frame = latest_frame.copy()
+
+        # Convert to HSV and threshold red regions
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # Red has two ranges in HSV
+        lower_red1 = np.array([0, 120, 200])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([160, 120, 200])
+        upper_red2 = np.array([180, 255, 255])
+
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        mask = cv2.bitwise_or(mask1, mask2)
+
+        # Find contours and get the largest red blob (laser)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            largest = max(contours, key=cv2.contourArea)
+            M = cv2.moments(largest)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                # print(f"[Laser] Detected red dot at ({cx}, {cy})")
+                # You can now collect (cx, cy) with the current motor angles for calibration
+                app_state.last_laser_pixel = (cx, cy)
+        time.sleep(0.1)
 
 
 def motor_loop():
     """Continuously run motors to reach target positions."""
+    homing_procedure()
+    print("[INFO] Homing motors before calibration...")
+    app_state.homing_complete = True
+    print("[INFO] Homing complete.")
     while True:
         Motor1.run()
         Motor2.run()
         time.sleep(0.001)
 
 if __name__ == '__main__':
-    print("[INFO] Homing motors before calibration...")
-    homing_procedure()
-    homing_complete = True
-    print("[INFO] Homing complete.")
-
     laser_pin.on()  # 🚨 TURN ON LASER HERE
-
+    threading.Thread(target=detect_laser_dot, daemon=True).start()
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=motor_loop, daemon=True).start()
     app.run(host='0.0.0.0', port=5050, debug=False)
