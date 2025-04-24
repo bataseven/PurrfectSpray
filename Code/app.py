@@ -1,32 +1,34 @@
+from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
+from app_state import app_state
+import joblib
+from app_utils import get_cpu_temp, register_shutdown
+from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
+from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
+from camera import capture_and_process, frame_lock, latest_frame, detect_in_background, stream_frames_over_zmq
+from dotenv import load_dotenv
+from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from logging.handlers import RotatingFileHandler
+import requests
+import logging
+import threading
+import time
+import os
 from gevent import monkey
 monkey.patch_all(subprocess=False, thread=False)
-import os
-import time
-import threading
-import logging
-import requests
-from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash, get_flashed_messages
-from flask_socketio import SocketIO, emit
-from dotenv import load_dotenv
-from camera import capture_and_process, frame_lock, latest_frame, detect_in_background, encode_loop, stream_frames_over_zmq
-from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
-from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
-from app_utils import get_cpu_temp, register_shutdown
-import joblib
-from app_state import app_state
-from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
 
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
 
 console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+console_handler.setFormatter(logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(message)s'))
 logger.addHandler(console_handler)
 
 file_handler = RotatingFileHandler("app.log", maxBytes=512*1024, backupCount=3)
-file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(message)s'))
 logger.addHandler(file_handler)
 
 app = Flask(__name__)
@@ -56,17 +58,23 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 
 # Simple in-memory user model
+
+
 class User(UserMixin):
     def __init__(self, id):
         self.id = id
 
 # For Flask-Login to find the current user
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User(user_id)
 
+
 WEB_PASSWORD = os.getenv("WEB_PASSWORD")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -89,6 +97,7 @@ def login():
 
     return render_template("login.html")
 
+
 @app.route("/logout")
 @login_required
 def logout():
@@ -103,10 +112,12 @@ def index():
     is_admin = session.get("is_admin", False)
     return render_template("index.html", is_admin=is_admin)
 
+
 @app.route("/offer", methods=["POST"])
 def offer_proxy():
     try:
-        webrtc_res = requests.post("http://localhost:8080/offer", json=request.get_json())
+        webrtc_res = requests.post(
+            "http://localhost:8080/offer", json=request.get_json())
         return jsonify(webrtc_res.json()), webrtc_res.status_code
     except Exception as e:
         logger.exception("Failed to forward WebRTC offer")
@@ -133,16 +144,18 @@ def on_connect():
         'status': 'On' if laser_pin.value else 'Off'
     })
 
+
 @socketio.on('disconnect')
 def on_disconnect():
     if app_state.viewer_count > 0:
         app_state.viewer_count -= 1
-        app_state.socketio.emit("viewer_count", {"count": app_state.viewer_count})
+        app_state.socketio.emit(
+            "viewer_count", {"count": app_state.viewer_count})
     if request.sid == app_state.active_controller_sid:
         print("[INFO] Releasing controller lock on disconnect")
         app_state.active_controller_sid = None
         socketio.emit("controller_update", {"sid": None})
-        
+
     if app_state.viewer_count == 0:
         app_state.target_lock.clear()
         app_state.latest_target_coords = (None, None)
@@ -168,13 +181,13 @@ def on_disconnect():
 def handle_click_target(data):
     if app_state.auto_mode or not homing_complete:
         return
-    
+
     if app_state.active_controller_sid is None:
         app_state.active_controller_sid = request.sid
-        socketio.emit("controller_update", {"sid": request.sid}) 
+        socketio.emit("controller_update", {"sid": request.sid})
     elif app_state.active_controller_sid != request.sid:
         return
-    
+
     if not homing_complete:
         return
     x = data.get('x')
@@ -193,6 +206,7 @@ def handle_click_target(data):
         'steps2': steps2,
         'status': 'moving'
     })
+
 
 @socketio.on('set_motor_position')
 def handle_set_motor_position(data):
@@ -233,6 +247,7 @@ def handle_laser():
         laser_pin.on()
         emit('laser_status', {'status': 'On'})
 
+
 @socketio.on('shoot')
 def handle_shoot():
     global water_gun_active
@@ -241,6 +256,7 @@ def handle_shoot():
         return
     water_gun_active = True
     water_gun_pin.on()
+
     def off():
         global water_gun_active
         time.sleep(0.5)
@@ -248,6 +264,7 @@ def handle_shoot():
         water_gun_active = False
     threading.Thread(target=off).start()
     emit('shoot_ack', {'status': 'fired'})
+
 
 @socketio.on('motor_control')
 def handle_motor_control(data):
@@ -295,7 +312,6 @@ def handle_motor_control(data):
         })
 
 
-
 def motor_loop():
     global homing_complete
 
@@ -325,7 +341,8 @@ def motor_loop():
 
                 # Smooth movement: don't jump all the way
                 if last_steps == (None, None):
-                    last_steps = (Motor1.current_position(), Motor2.current_position())
+                    last_steps = (Motor1.current_position(),
+                                  Motor2.current_position())
 
                 interp1 = int(last_steps[0] + (steps1 - last_steps[0]) * 0.1)
                 interp2 = int(last_steps[1] + (steps2 - last_steps[1]) * 0.1)
@@ -341,7 +358,6 @@ def motor_loop():
 
     except Exception as e:
         logger.exception("Error in motor_loop")
-
 
     except Exception as e:
         logger.exception("Error in motor_loop")
@@ -379,16 +395,17 @@ def status_broadcast_loop():
 
 def start_background_threads():
     register_shutdown()
-    threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=motor_loop, daemon=True).start()
     threading.Thread(target=fan_loop, daemon=True).start()
     threading.Thread(target=status_broadcast_loop, daemon=True).start()
+    threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=detect_in_background, daemon=True).start()
-    threading.Thread(target=encode_loop, daemon=True).start()
     threading.Thread(target=stream_frames_over_zmq, daemon=True).start()
     logger.info("Background threads started")
+
 
 start_background_threads()
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    socketio.run(app, host='0.0.0.0', port=5000,
+                 debug=True, use_reloader=False)

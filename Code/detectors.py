@@ -26,7 +26,8 @@ class BaseDetector:
 class MobileNetDetector(BaseDetector):
     def __init__(self):
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        weights = os.path.join(script_dir, "model", "mobilenet_iter_73000.caffemodel")
+        weights = os.path.join(script_dir, "model",
+                               "mobilenet_iter_73000.caffemodel")
         config = os.path.join(script_dir, "model", "deploy.prototxt")
         labelmap = os.path.join(script_dir, "model", "labelmap_voc.prototxt")
 
@@ -45,10 +46,12 @@ class MobileNetDetector(BaseDetector):
             confidence = detections[0, 0, i, 2]
             if confidence > 0.5:
                 class_id = int(detections[0, 0, i, 1])
-                label = self.classes[class_id] if 0 < class_id < len(self.classes) else "unknown"
+                label = self.classes[class_id] if 0 < class_id < len(
+                    self.classes) else "unknown"
                 box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
                 startX, startY, endX, endY = box.astype("int")
-                results.append(Detection(class_id, label, confidence, (startX, startY, endX, endY)))
+                results.append(Detection(class_id, label,
+                               confidence, (startX, startY, endX, endY)))
         return results
 
 
@@ -58,14 +61,14 @@ class MobileNetDetector(BaseDetector):
 class YoloV5Detector(BaseDetector):
     def __init__(self, model_name='yolov5n', conf_threshold=0.5, size=640):
         self.size = size
-        self.model = torch.hub.load('ultralytics/yolov5', model_name, trust_repo=True)
+        self.model = torch.hub.load(
+            'ultralytics/yolov5', model_name, trust_repo=True)
         self.model.conf = conf_threshold  # confidence threshold
         self.model.eval()
 
     def detect(self, frame):
         results = self.model(frame, size=self.size)
         detections = results.xyxy[0]  # x1, y1, x2, y2, conf, class
-
         labels = self.model.names
         output = []
         for *box, conf, class_id in detections.tolist():
@@ -73,7 +76,8 @@ class YoloV5Detector(BaseDetector):
                 continue
             x1, y1, x2, y2 = map(int, box)
             label = labels[int(class_id)]
-            output.append(Detection(int(class_id), label, float(conf), (x1, y1, x2, y2)))
+            output.append(Detection(int(class_id), label,
+                          float(conf), (x1, y1, x2, y2)))
         return output
 
 
@@ -84,22 +88,23 @@ class YoloV5OVDetector(BaseDetector):
     def __init__(self, model_dir='yolov5nu_openvino_model', conf_threshold=0.5):
         self.conf_threshold = conf_threshold
         self.core = Core()
-        self.model = self.core.compile_model(f"{model_dir}/yolov5nu.xml", "CPU")
+        self.model = self.core.compile_model(
+            f"{model_dir}/yolov5nu.xml", "CPU")
         self.input_layer = self.model.input(0)
         self.output_layer = self.model.output(0)
         self.input_size = self.input_layer.shape[2:]  # [height, width]
         self.class_names = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
-    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
-    "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
-    "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
-    "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
-    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
-    "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
-    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
-    "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
-]
+            "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+            "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+            "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+            "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+            "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+            "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+            "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+            "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
+            "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
+            "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+        ]
 
     def detect(self, frame):
         detections = []
@@ -116,7 +121,8 @@ class YoloV5OVDetector(BaseDetector):
                 if conf < self.conf_threshold:
                     continue
                 cls_id = int(np.argmax(det[5:]))
-                label = self.class_names[cls_id] if cls_id < len(self.class_names) else f"class_{cls_id}"
+                label = self.class_names[cls_id] if cls_id < len(
+                    self.class_names) else f"class_{cls_id}"
 
                 x_center, y_center, width, height = det[:4]
                 x_center *= w
@@ -128,7 +134,8 @@ class YoloV5OVDetector(BaseDetector):
                 x2 = int(x_center + width / 2)
                 y2 = int(y_center + height / 2)
 
-                detections.append(Detection(cls_id, label, float(conf), (x1, y1, x2, y2)))
+                detections.append(
+                    Detection(cls_id, label, float(conf), (x1, y1, x2, y2)))
         except Exception as e:
             import logging
             logging.getLogger("App").exception("Error in OpenVINO detect()")
