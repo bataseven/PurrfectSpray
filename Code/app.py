@@ -1,3 +1,5 @@
+from gevent import monkey # type: ignore
+monkey.patch_all(subprocess=False, thread=False) # type: ignore
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
 from app_state import app_state
 import joblib
@@ -14,8 +16,6 @@ import logging
 import threading
 import time
 import os
-from gevent import monkey
-monkey.patch_all(subprocess=False, thread=False)
 
 
 logger = logging.getLogger("App")
@@ -311,6 +311,13 @@ def handle_motor_control(data):
             'auto_mode': app_state.auto_mode
         })
 
+
+@socketio.on('update_target')
+def handle_update_target(data):
+    target = data.get("target")
+    if target:
+        app_state.tracking_target = target
+        print(f"[SocketIO] Target updated to: {target}")
 
 def motor_loop():
     global homing_complete

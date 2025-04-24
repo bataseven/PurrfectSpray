@@ -69,20 +69,23 @@ def capture_and_process():
             with detection_lock:
                 detections_copy = list(latest_detections)
 
+            selected_label = app_state.tracking_target.lower() if app_state.tracking_target else None
+            print(f"Selected label: {selected_label}")
+            
             for i, det in enumerate(detections_copy):
-                startX, startY, endX, endY = det.box
                 color = highlight_colors[det.class_id % len(highlight_colors)]
+                if selected_label and det.label.lower() != selected_label:
+                    # Put a sample circle on the detection
+                    startX, startY, endX, endY = det.box
+                    target_x = int((startX + endX) / 2)
+                    target_y = int((startY + endY) / 2)
+                    cv2.circle(frame, (target_x, target_y), 5, color, -1)
+                    continue
+                startX, startY, endX, endY = det.box
                 cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
                 label = f"{det.label}: {det.confidence:.2f}"
                 cv2.putText(frame, label, (startX, startY - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-                if det.class_id == 15: # Assuming class_id 15 is the target (e.g., "person")
-                    target_x = int((startX + endX) / 2)
-                    target_y = int((startY + endY) / 2)
-                    cv2.circle(frame, (target_x, target_y), 5, (255, 0, 0), -1)
-                    cv2.putText(frame, "Target", (target_x, target_y - 15),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
             with frame_lock:
                 latest_frame = frame.copy()

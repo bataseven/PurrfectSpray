@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", function () {
             lastVideoTime = currentTime;
         }
     }, 1500);
-    
+
     let retryInProgress = false;
     async function startWebRTCWithRetry(timeoutMs = 10000) {
         if (retryInProgress) return;
@@ -129,11 +129,11 @@ document.addEventListener("DOMContentLoaded", function () {
         const spinner = document.getElementById("loading-spinner");
         if (spinner) {
             spinner.style.display = "block";
-    
+
             const text = spinner.querySelector(".spinner-text");
             if (text) text.textContent = message;
         }
-    
+
         const video = document.getElementById("video-feed");
         if (video) {
             video.style.pointerEvents = "none";
@@ -421,6 +421,18 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         socket.emit("click_target", { x, y });
+    });
+
+    document.querySelectorAll(".target-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".target-btn").forEach(b => b.classList.remove("selected"));
+            btn.classList.add("selected");
+
+            selectedTarget = btn.dataset.target;
+
+            // Emit to server so it can update app_state.tracking_target
+            socket.emit("update_target", { target: selectedTarget });
+        });
     });
 
     socket.on("controller_update", data => {
