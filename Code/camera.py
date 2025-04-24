@@ -8,7 +8,7 @@ from picamera2 import Picamera2
 import time
 import logging
 from logging.handlers import RotatingFileHandler
-from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector
+from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector, highlight_colors
 import threading
 from app_state import app_state
 import zmq
@@ -48,6 +48,8 @@ except Exception as e:
 
 detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=320)
 # detector = MobileNetDetector()
+
+# model_path = os.path.join(script_dir,"yolov5nu_openvino_model")
 # detector = YoloV5OVDetector(model_path)
 
 frame_lock = Lock()
@@ -67,15 +69,15 @@ def capture_and_process():
             with detection_lock:
                 detections_copy = list(latest_detections)
 
-            for det in detections_copy:
+            for i, det in enumerate(detections_copy):
                 startX, startY, endX, endY = det.box
-                color = (0, 255, 0) if det.class_id == 15 else (255, 0, 0)
+                color = highlight_colors[det.class_id % len(highlight_colors)]
                 cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
                 label = f"{det.label}: {det.confidence:.2f}"
                 cv2.putText(frame, label, (startX, startY - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-                if det.class_id == 15:
+                if det.class_id == 15: # Assuming class_id 15 is the target (e.g., "person")
                     target_x = int((startX + endX) / 2)
                     target_y = int((startY + endY) / 2)
                     cv2.circle(frame, (target_x, target_y), 5, (255, 0, 0), -1)
@@ -108,8 +110,8 @@ def detect_in_background():
                 x1, y1, x2, y2 = det.box
                 # Ensure integer pixel values
                 det.box = (int(x1), int(y1), int(x2), int(y2))
-                print(
-                    f"Detection: {det.label} ({det.confidence:.2f}) at ({x1}, {y1}, {x2}, {y2})")
+                # print(
+                #     f"Detection: {det.label} ({det.confidence:.2f}) at ({x1}, {y1}, {x2}, {y2})")
 
             with detection_lock:
                 latest_detections = detections

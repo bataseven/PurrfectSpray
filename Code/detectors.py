@@ -6,6 +6,38 @@ import numpy as np
 import torch
 from openvino.runtime import Core
 
+highlight_colors = [
+    (255, 99, 71),     # Tomato
+    (135, 206, 235),   # Sky Blue
+    (124, 252, 0),     # Lawn Green
+    (255, 165, 0),     # Orange
+    (147, 112, 219),   # Medium Purple
+    (255, 215, 0),     # Gold
+    (0, 206, 209),     # Dark Turquoise
+    (255, 20, 147),    # Deep Pink
+    (70, 130, 180),    # Steel Blue
+    (154, 205, 50),    # Yellow Green
+    (255, 105, 180),   # Hot Pink
+    (0, 191, 255),     # Deep Sky Blue
+    (199, 21, 133),    # Medium Violet Red
+    (240, 230, 140),   # Khaki
+    (106, 90, 205),    # Slate Blue
+    (127, 255, 212),   # Aquamarine
+    (244, 164, 96),    # Sandy Brown
+    (60, 179, 113),    # Medium Sea Green
+    (255, 160, 122),   # Light Salmon
+    (0, 250, 154),     # Medium Spring Green
+    (218, 112, 214),   # Orchid
+    (255, 0, 255),     # Magenta
+    (0, 128, 128),     # Teal
+    (255, 228, 181),   # Moccasin
+    (0, 255, 127),     # Spring Green
+    (255, 69, 0),      # Orange Red
+    (255, 140, 0),     # Dark Orange
+    (173, 255, 47),    # Green Yellow
+    (205, 92, 92),     # Indian Red
+    (64, 224, 208),    # Turquoise
+]
 
 class Detection:
     def __init__(self, class_id, label, confidence, box):
