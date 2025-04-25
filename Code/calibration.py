@@ -28,6 +28,11 @@ latest_frame = None
 
 app = Flask(__name__)
 
+sweep_corners = []  # [(theta1, theta2), (theta1, theta2), ...]
+theta1 = 0
+theta2 = 0
+calibration_file = "calibration.json"
+
 # Camera init
 try:
     picam2 = Picamera2()
@@ -103,10 +108,6 @@ def generate_frames():
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
         
 
-theta1 = 0
-theta2 = 0
-calibration_file = "calibration.json"
-
 @app.route('/')
 def index():
     return render_template('calibration.html')
@@ -131,8 +132,23 @@ def start_auto_calibration():
         return jsonify({"message": "Calibration is already running."}), 400
 
     def auto_calibration_worker():
+        if len(sweep_corners) < 4:
+            print("[ERROR] Not enough corners recorded!")
+            return
+
         print("[INFO] Starting auto calibration...")
         app_state.auto_calibrating = True
+        
+        # Find bounding box
+        thetas1 = [corner[0] for corner in sweep_corners]
+        thetas2 = [corner[1] for corner in sweep_corners]
+        
+        theta1_min = min(thetas1)
+        theta1_max = max(thetas1)
+        theta2_min = min(thetas2)
+        theta2_max = max(thetas2)
+        
+        theta_step = 5  # degrees
 
         # Load existing data if any
         filename = "calibration.json"
@@ -142,16 +158,12 @@ def start_auto_calibration():
         else:
             data = []
 
-        theta1_start = Motor1.current_position() * DEGREES_PER_STEP_1
-        theta2_start = Motor2.current_position() * DEGREES_PER_STEP_2
-
-        for delta1 in range(-5, 6, 3):  # include +5 too
-            for delta2 in range(-5, 6, 3):
-                theta1 = theta1_start + delta1
-                theta2 = theta2_start + delta2
+        for theta1 in np.arange(theta1_min, theta1_max + theta_step, theta_step):
+            for theta2 in np.arange(theta2_min, theta2_max + theta_step, theta_step):
 
                 move_motor_to_position(1, theta1)
                 move_motor_to_position(2, theta2)
+                app_state.latest_slider_angles = (theta1, theta2)
                 time.sleep(1.0)  # allow time to settle
 
                 if app_state.last_laser_pixel:
@@ -226,6 +238,12 @@ def record_point():
 
     return jsonify({'status': 'recorded', 'point': point})
 
+@app.route('/update_slider')
+def update_slider():
+    theta1 = Motor1.current_position() * DEGREES_PER_STEP_1
+    theta2 = Motor2.current_position() * DEGREES_PER_STEP_2
+    return jsonify({'theta1': theta1, 'theta2': theta2})
+
 def move_motor_to_position(motor_num, position_deg):
     if motor_num == 1:
         steps = int(position_deg / DEGREES_PER_STEP_1)
@@ -240,6 +258,22 @@ def set_motor_position():
     position_deg = request.args.get('position', type=float)
     move_motor_to_position(motor_num, position_deg)
     return jsonify({'status': f'Motor {motor_num} set to {position_deg} degrees'})
+
+@app.route('/record_sweep_corner', methods=['POST'])
+def record_sweep_corner():
+    theta1 = Motor1.current_position() * DEGREES_PER_STEP_1
+    theta2 = Motor2.current_position() * DEGREES_PER_STEP_2
+    sweep_corners.append((theta1, theta2))
+    return jsonify({'status': 'corner recorded', 'corners': sweep_corners})
+
+@app.route('/slider_status')
+def slider_status():
+    if hasattr(app_state, "latest_slider_angles") and app_state.latest_slider_angles is not None:
+        theta1, theta2 = app_state.latest_slider_angles
+    else:
+        theta1, theta2 = 0, 0
+
+    return jsonify({'theta1': theta1, 'theta2': theta2})
 
 
 def detect_laser_dot():
@@ -294,4 +328,4 @@ if __name__ == '__main__':
     threading.Thread(target=detect_laser_dot, daemon=True).start()
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=motor_loop, daemon=True).start()
-    app.run(host='0.0.0.0', port=5050, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)

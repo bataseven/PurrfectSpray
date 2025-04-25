@@ -28,5 +28,7 @@ class AppState:
         self.auto_calibrating = False
         self.last_laser_pixel = None
 
+        self.latest_slider_angles = None
+        
 # Singleton instance to import everywhere
 app_state = AppState()

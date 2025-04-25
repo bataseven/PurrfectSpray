@@ -1,19 +1,31 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <title>Calibration Interface</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='calibration.css') }}" />
 </head>
+
 <body>
   <h1>Laser Calibration</h1>
   <p>Click the point where the laser dot is aimed.</p>
 
-  <div id="video-wrapper">
+  <div id="video-wrapper" style="position: relative;">
     <div id="loading-spinner"></div>
-    <img id="video-feed" src="/video_feed" alt="Video Feed">
+    <img id="video-feed" src="/video_feed" alt="Video Feed" style="display: block; width: 100%;">
+    <canvas id="overlay-canvas" style="position: absolute; top: 0; left: 0;"></canvas>
+
     <div class="video-mode-indicator" id="video-mode-indicator" style="display: none;">
       <i class="fas fa-circle"></i> Mode: Calibration
+    </div>
+
+    <div class="surface-ui"
+      style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.8); padding: 8px; border-radius: 8px; display: flex; flex-direction: column; gap: 5px;">
+      <button id="reset-surface">🔄 Reset Current Surface</button>
+      <button id="finish-surface">✅ Finish Current Surface</button>
+      <button id="clear-all">🗑️ Clear All Surfaces</button>
+      <button id="export-surfaces">💾 Export Surfaces</button>
     </div>
   </div>
 
@@ -29,11 +41,13 @@
 
   <button onclick="toggleLaser()">Toggle Laser</button>
   <button onclick="recordPoint()" disabled id="record-btn">Record Calibration Point</button>
+  <button onclick="recordSweepCorner()" id="record-corner-btn">Record Sweep Corner</button>
   <button onclick="startAutoCalibration()" id="auto-calibrate-btn">Start Auto Calibration</button>
 
   <div id="status">Homing motors...</div>
 
   <script>
+    let autoCalibrating = false;
     const theta1 = document.getElementById('theta1');
     const theta2 = document.getElementById('theta2');
     const label1 = document.getElementById('theta1-label');
@@ -66,7 +80,7 @@
       updateMotor(2, theta2.value);
     });
 
-    document.getElementById('video-feed').addEventListener('click', function(event) {
+    document.getElementById('video-feed').addEventListener('click', function (event) {
       const rect = this.getBoundingClientRect();
       const renderedWidth = rect.width;
       const renderedHeight = rect.height;
@@ -85,6 +99,7 @@
     });
 
     function startAutoCalibration() {
+      autoCalibrating = true;
       fetch('/start_auto_calibration')
         .then(res => res.json())
         .then(data => {
@@ -94,6 +109,24 @@
           console.error(err);
         });
     }
+
+    function setSliderPosition(t1, t2) {
+      document.getElementById("theta1").value = t1;
+      document.getElementById("theta2").value = t2;
+      document.getElementById("theta1-label").textContent = t1.toFixed(2);
+      document.getElementById("theta2-label").textContent = t2.toFixed(2);
+    }    
+
+    setInterval(() => {
+      if (!autoCalibrating) return;  // only sync during auto-calibration
+    
+      fetch("/slider_status")
+        .then(res => res.json())
+        .then(data => {
+          setSliderPosition(data.theta1, data.theta2);
+        });
+    }, 500);
+    
 
     function recordPoint() {
       if (!lastPixel) {
@@ -106,13 +139,27 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(lastPixel)
       })
-      .then(res => res.json())
-      .then(data => {
-        alert("Point recorded successfully!");
-        lastPixel = null;
-        document.getElementById('coords').textContent = 'Click to select a pixel';
-      });
+        .then(res => res.json())
+        .then(data => {
+          alert("Point recorded successfully!");
+          lastPixel = null;
+          document.getElementById('coords').textContent = 'Click to select a pixel';
+        });
     }
+
+    function recordSweepCorner() {
+      fetch('/record_sweep_corner', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          alert("Sweep corner recorded! Total corners: " + data.corners.length);
+        });
+    }
+
+    document.getElementById("clear-all").addEventListener("click", function () {
+      surfaces = [];
+      currentPoints = [];
+      draw();
+    });
 
     function checkHoming() {
       fetch('/homing_status')
@@ -137,7 +184,100 @@
         });
     }
 
+    let canvas = document.getElementById("overlay-canvas");
+    let video = document.getElementById("video-feed");
+    let ctx = canvas.getContext("2d");
+
+    let currentPoints = [];
+    let surfaces = [];
+
+    function resizeCanvasToVideo() {
+      const rect = video.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+
+    window.addEventListener("resize", resizeCanvasToVideo);
+    video.addEventListener("loadedmetadata", resizeCanvasToVideo);
+    video.addEventListener("play", resizeCanvasToVideo);
+    video.addEventListener("load", resizeCanvasToVideo);
+
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      currentPoints.push([x, y]);
+      draw();
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw current polygon
+      if (currentPoints.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(currentPoints[0][0], currentPoints[0][1]);
+        for (let i = 1; i < currentPoints.length; i++) {
+          ctx.lineTo(currentPoints[i][0], currentPoints[i][1]);
+        }
+        ctx.strokeStyle = "yellow";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      for (let surface of surfaces) {
+        const poly = surface.points;
+        ctx.beginPath();
+        ctx.moveTo(poly[0][0], poly[0][1]);
+        for (let i = 1; i < poly.length; i++) {
+          ctx.lineTo(poly[i][0], poly[i][1]);
+        }
+        ctx.closePath();
+        ctx.fillStyle = surface.color;
+        ctx.fill();
+        ctx.strokeStyle = surface.color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    document.getElementById("reset-surface").addEventListener("click", () => {
+      currentPoints = [];
+      draw();
+    });
+
+    document.getElementById("finish-surface").addEventListener("click", () => {
+      if (currentPoints.length >= 3) {
+        const surface = {
+          points: [...currentPoints],
+          color: getRandomColor()
+        };
+        surfaces.push(surface);
+        currentPoints = [];
+        draw();
+      }
+    });
+
+    function getRandomColor(alpha = 0.2) {
+      const r = Math.floor(100 + Math.random() * 155);
+      const g = Math.floor(100 + Math.random() * 155);
+      const b = Math.floor(100 + Math.random() * 155);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    document.getElementById("export-surfaces").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(surfaces, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "surfaces.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+
     checkHoming();
   </script>
 </body>
+
 </html>
