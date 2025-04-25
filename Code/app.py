@@ -16,7 +16,9 @@ import logging
 import threading
 import time
 import os
-
+import json
+import cv2 
+import numpy as np
 
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
@@ -36,8 +38,24 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 app_state.socketio = socketio
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-model_path = os.path.join(script_dir, 'model.pkl')
-model = joblib.load(model_path)
+models_path = os.path.join(script_dir, "models")
+
+# Load surface polygons
+with open(os.path.join(script_dir, 'surfaces.json'), 'r') as f:
+    surfaces = json.load(f)
+
+# Load model mapping
+with open(os.path.join(models_path, 'model_mapping.json'), 'r') as f:
+    model_mapping = json.load(f)
+
+# Load all models into memory
+surface_models = {}
+for idx_str, model_filename in model_mapping.items():
+    idx = int(idx_str)
+    model_path = os.path.join(script_dir, model_filename)
+    surface_models[idx] = joblib.load(model_path)
+
+print(f"Loaded {len(surface_models)} models.")
 
 pcs = set()
 
@@ -194,7 +212,7 @@ def handle_click_target(data):
     y = data.get('y')
     if x is None or y is None:
         return
-    theta1, theta2 = model.predict([[x, y]])[0]
+    theta1, theta2 = predict_angles(x, y)
     steps1 = int(theta1 / DEGREES_PER_STEP_1)
     steps2 = int(theta2 / DEGREES_PER_STEP_2)
     Motor1.move_to(steps1)
@@ -319,6 +337,41 @@ def handle_update_target(data):
         app_state.tracking_target = target
         print(f"[SocketIO] Target updated to: {target}")
 
+def point_in_polygon(polygon, x, y):
+    """Returns True if point (x, y) is inside polygon."""
+    poly_np = np.array(polygon, np.int32)
+    return cv2.pointPolygonTest(poly_np, (x, y), False) >= 0
+
+def predict_angles(x, y):
+    # 1. Find which surface the pixel belongs to
+    for idx, surface in enumerate(surfaces):
+        if point_in_polygon(surface["points"], x, y):
+            model = surface_models[idx]
+            theta1, theta2 = model.predict([[x, y]])[0]
+            return theta1, theta2
+
+    # 2. If no match, optionally: find closest polygon
+    closest_idx = find_closest_surface(x, y)
+    if closest_idx is not None:
+        model = surface_models[closest_idx]
+        theta1, theta2 = model.predict([[x, y]])[0]
+        return theta1, theta2
+
+    # 3. Otherwise, fallback
+    raise ValueError("Pixel not inside any surface and no close polygon found.")
+
+def find_closest_surface(x, y):
+    min_dist = float('inf')
+    closest_idx = None
+    for idx, surface in enumerate(surfaces):
+        center_x = np.mean([p[0] for p in surface["points"]])
+        center_y = np.mean([p[1] for p in surface["points"]])
+        dist = np.hypot(center_x - x, center_y - y)
+        if dist < min_dist:
+            min_dist = dist
+            closest_idx = idx
+    return closest_idx
+
 def motor_loop():
     global homing_complete
 
@@ -342,7 +395,7 @@ def motor_loop():
             # Interpolate toward the current_coords if defined
             if motor_active and homing_complete and current_coords:
                 x, y = current_coords
-                theta1, theta2 = model.predict([[x, y]])[0]
+                theta1, theta2 = predict_angles(x, y)
                 steps1 = int(theta1 / DEGREES_PER_STEP_1)
                 steps2 = int(theta2 / DEGREES_PER_STEP_2)
 

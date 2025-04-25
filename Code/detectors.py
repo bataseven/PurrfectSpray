@@ -58,10 +58,10 @@ class BaseDetector:
 class MobileNetDetector(BaseDetector):
     def __init__(self):
         script_dir = os.path.dirname(os.path.realpath(__file__))
-        weights = os.path.join(script_dir, "model",
+        weights = os.path.join(script_dir, "models",
                                "mobilenet_iter_73000.caffemodel")
-        config = os.path.join(script_dir, "model", "deploy.prototxt")
-        labelmap = os.path.join(script_dir, "model", "labelmap_voc.prototxt")
+        config = os.path.join(script_dir, "models", "deploy.prototxt")
+        labelmap = os.path.join(script_dir, "models", "labelmap_voc.prototxt")
 
         self.net = cv2.dnn.readNetFromCaffe(config, weights)
         with open(labelmap, "r") as f:
