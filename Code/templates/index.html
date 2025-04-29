@@ -89,6 +89,14 @@
 
       <div class="status-item">Motor: <span id="motor-status" class="status-value">Idle</span></div>
       <div class="status-item">Laser: <span id="laser-status" class="status-value">Off</span></div>
+      <div class="status-item">
+        Detection Model:
+        <select id="model-select" class="styled-select">
+          <option value="yolov5n">YOLOv5n (Default)</option>
+          <option value="mobilenet">MobileNet SSD</option>
+          <option value="openvino">YOLOv5 OpenVINO</option>
+        </select>
+      </div>
     </div>
 
     <!-- Manual Motor Control -->

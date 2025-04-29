@@ -6,7 +6,7 @@ import joblib
 from app_utils import get_cpu_temp, register_shutdown
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
-from camera import capture_and_process, frame_lock, latest_frame, detect_in_background, stream_frames_over_zmq
+from camera import capture_and_process, detect_in_background, stream_frames_over_zmq, set_detector
 from dotenv import load_dotenv
 from flask_socketio import SocketIO, emit
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
@@ -60,7 +60,6 @@ print(f"Loaded {len(surface_models)} models.")
 pcs = set()
 
 motor_active = False
-homing_complete = False
 water_gun_active = False
 
 # Load environment variables
@@ -197,7 +196,7 @@ def on_disconnect():
 
 @socketio.on('click_target')
 def handle_click_target(data):
-    if app_state.auto_mode or not homing_complete:
+    if app_state.auto_mode or not app_state.homing_complete:
         return
 
     if app_state.active_controller_sid is None:
@@ -206,7 +205,7 @@ def handle_click_target(data):
     elif app_state.active_controller_sid != request.sid:
         return
 
-    if not homing_complete:
+    if not app_state.homing_complete:
         return
     x = data.get('x')
     y = data.get('y')
@@ -228,7 +227,7 @@ def handle_click_target(data):
 
 @socketio.on('set_motor_position')
 def handle_set_motor_position(data):
-    if not homing_complete:
+    if not app_state.homing_complete:
         return
     if not session.get("is_admin"):
         emit('motor_status', {
@@ -254,6 +253,16 @@ def handle_set_motor_position(data):
         if abs(delta) < 1:
             return
         Motor2.move_to(int(target_deg / DEGREES_PER_STEP_2))
+
+
+@socketio.on('change_model')
+def handle_change_model(data):
+    model_name = data.get('model')
+    try:
+        set_detector(model_name)
+        emit('model_changed', {'status': 'success', 'model': model_name})
+    except Exception as e:
+        emit('model_changed', {'status': 'error', 'message': str(e)})
 
 
 @socketio.on('toggle_laser')
@@ -291,7 +300,7 @@ def handle_motor_control(data):
     action = data.get('action')
     target_class = data.get('target')
 
-    if not homing_complete:
+    if not app_state.homing_complete:
         # 🔁 Notify only the sender since system is not ready
         emit('motor_status', {
             'status': 'Not ready (homing in progress)',
@@ -373,19 +382,16 @@ def find_closest_surface(x, y):
     return closest_idx
 
 def motor_loop():
-    global homing_complete
-
     try:
         logger.info("Starting homing procedure")
-        homing_procedure()
-        homing_complete = True
-        logger.info("Homing complete")
+        app_state.homing_complete = homing_procedure()
+        logger.info("Homing complete" if app_state.homing_complete else "Homing failed")
 
         last_steps = (None, None)
         current_coords = None
 
         while True:
-            if motor_active and homing_complete and app_state.target_lock.is_set():
+            if motor_active and app_state.homing_complete and app_state.target_lock.is_set():
                 app_state.target_lock.clear()
 
                 new_coords = app_state.latest_target_coords
@@ -393,7 +399,7 @@ def motor_loop():
                     current_coords = new_coords  # Snap to the latest target
 
             # Interpolate toward the current_coords if defined
-            if motor_active and homing_complete and current_coords:
+            if motor_active and app_state.homing_complete and current_coords:
                 x, y = current_coords
                 theta1, theta2 = predict_angles(x, y)
                 steps1 = int(theta1 / DEGREES_PER_STEP_1)
@@ -444,9 +450,10 @@ def status_broadcast_loop():
                 'motor2': Motor2.current_position() * DEGREES_PER_STEP_2,
                 'cpu_temp': get_cpu_temp(),
                 'laser': laser_pin.value,
-                'homing': homing_complete,
+                'homing': app_state.homing_complete,
                 'sensor1': not hall_sensor_1.value,
-                'sensor2': not hall_sensor_2.value
+                'sensor2': not hall_sensor_2.value,
+                'homing_error': app_state.homing_error
             })
             time.sleep(0.75)
     except Exception as e:
@@ -456,7 +463,7 @@ def status_broadcast_loop():
 def start_background_threads():
     register_shutdown()
     threading.Thread(target=motor_loop, daemon=True).start()
-    threading.Thread(target=fan_loop, daemon=True).start()
+    # threading.Thread(target=fan_loop, daemon=True).start()
     threading.Thread(target=status_broadcast_loop, daemon=True).start()
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=detect_in_background, daemon=True).start()

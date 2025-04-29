@@ -25,6 +25,7 @@ class AppState:
         self.jpeg_lock = Lock()
         
         self.homing_complete = False
+        self.homing_error = False
         self.auto_calibrating = False
         self.last_laser_pixel = None
 

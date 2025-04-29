@@ -34,6 +34,7 @@ class_labels_path = os.path.join(script_dir, "model", "labelmap_voc.prototxt")
 
 latest_detections = []
 detection_lock = threading.Lock()
+detector_lock = threading.Lock()
 
 picam2 = None
 
@@ -47,10 +48,8 @@ except Exception as e:
     raise RuntimeError("Camera initialization failed") from e
 
 detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=320)
-# detector = MobileNetDetector()
 
-# model_path = os.path.join(script_dir,"yolov5nu_openvino_model")
-# detector = YoloV5OVDetector(model_path)
+openvino_model_path = os.path.join(script_dir,"yolov5nu_openvino_model")
 
 frame_lock = Lock()
 frame_available = Event()
@@ -93,8 +92,24 @@ def capture_and_process():
         except Exception as e:
             logger.exception("Exception in capture_and_process loop")
             time.sleep(2)
-
-
+           
+            
+def set_detector(model_name):
+    global detector
+    with detector_lock:
+        if model_name == 'mobilenet':
+            detector = MobileNetDetector()
+            print("Using MobileNet detector")
+        elif model_name == 'yolov5n':
+            detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=320)
+            print("Using YOLOv5n detector")
+        elif model_name == 'openvino':
+            detector = YoloV5OVDetector(openvino_model_path)
+            print("Using OpenVINO YOLOv5 detector")
+        else:
+            raise ValueError(f"Unknown model: {model_name}")
+        
+        
 def detect_in_background():
     global latest_frame, latest_detections
 
@@ -106,7 +121,8 @@ def detect_in_background():
             with frame_lock:
                 frame = latest_frame.copy()
 
-            detections = detector.detect(frame)
+            with detector_lock:
+                detections = detector.detect(frame)
 
             for det in detections:
                 x1, y1, x2, y2 = det.box

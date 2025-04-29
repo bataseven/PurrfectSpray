@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (hasVideo && currentTime === lastVideoTime) {
             staleCounter++;
-            if (staleCounter > 3) {  // ~5 seconds of no change
+            if (staleCounter > 3) {  // ~5 seconds of no chiange
                 console.warn("[RTC] Stream appears to have stalled");
                 showSpinner("Reconnecting...");
                 webrtcConnected = false;
@@ -179,6 +179,12 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
+    document.getElementById("model-select").addEventListener("change", function() {
+        const selectedModel = this.value;
+        socket.emit('change_model', {model: selectedModel});
+    });
+    
+
     function updateModeIndicator(label, icon = "fa-crosshairs", force = false) {
         const indicator = document.getElementById("video-mode-indicator");
 
@@ -260,10 +266,18 @@ document.addEventListener("DOMContentLoaded", function () {
         const laserStatus = document.getElementById("laser-status");
         laserStatus.textContent = data.laser ? "On" : "Off";
         laserStatus.className = 'status-value ' + (data.laser ? "On" : "Off");
-
+        
         const homingStatus = document.getElementById("homing-status");
-        homingStatus.textContent = data.homing ? "Complete" : "In Progress";
-        homingStatus.className = 'status-value ' + (data.homing ? "Complete" : "InProgress");
+        if (data.homing_error) {
+            homingStatus.textContent = "Error";
+            homingStatus.className = "status-value Error";
+        } else if (data.homing) {
+            homingStatus.textContent = "Complete";
+            homingStatus.className = "status-value Complete";
+        } else {
+            homingStatus.textContent = "In Progress";
+            homingStatus.className = "status-value InProgress";
+        }
 
         document.getElementById("sensor-status-1").textContent = data.sensor1 ? "Detected!" : "Not detected";
         document.getElementById("sensor-status-2").textContent = data.sensor2 ? "Detected!" : "Not detected";
@@ -290,13 +304,13 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (data.auto_mode) {
-            updateModeIndicator(`Tracking ${data.target || "Target"}`, "fa-bullseye");  // 🔁 ADD
+            updateModeIndicator(`Tracking ${data.target || "Target"}`, "fa-bullseye");
             autoBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Auto Tracking';
             indicator.classList.remove("off");
             indicator.classList.add("on");
             indicator.innerHTML = '<i class="fas fa-bullseye"></i> Auto Tracking: On';
         } else {
-            updateModeIndicator("Idle", "fa-circle");  // 🔁 ADD
+            updateModeIndicator("Idle", "fa-circle");
             autoBtn.innerHTML = '<i class="fas fa-play"></i> Start Auto Tracking';
             indicator.classList.remove("on");
             indicator.classList.add("off");
@@ -418,6 +432,15 @@ document.addEventListener("DOMContentLoaded", function () {
             toast.classList.add("show");
             showToast("Cursor follow disabled. You can now click to aim.");
             setTimeout(() => toast.classList.remove("show"), 1500);
+        }
+
+        // Show a toast message if the homing is failed and there already is not a toast message
+        if (document.getElementById("homing-status").textContent === "Error" && !document.getElementById("mode-toast").classList.contains("show")) {
+            const toast = document.getElementById("mode-toast");
+            toast.classList.add("show");
+            showToast("Homing failed");
+            setTimeout(() => toast.classList.remove("show"), 1500);
+            return;
         }
 
         socket.emit("click_target", { x, y });

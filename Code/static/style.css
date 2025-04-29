@@ -176,6 +176,11 @@ input[type="range"]::-webkit-slider-thumb {
   color: #856404;
 }
 
+.status-value.Error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
 .status-value.Off {
   background-color: #f8d7da;
   color: #721c24;
@@ -400,4 +405,22 @@ footer {
 
 .logout-btn:hover {
   color: #357ab8;
+}
+
+.styled-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background-color: #f5f7fa;
+  font-size: 16px;
+  font-family: 'Roboto', sans-serif;
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.styled-select:focus {
+  outline: none;
+  border-color: #4a90e2;
+  background-color: #ffffff;
 }
