@@ -345,6 +345,7 @@ def handle_update_target(data):
     if target:
         app_state.tracking_target = target
         print(f"[SocketIO] Target updated to: {target}")
+        socketio.emit("target_updated", { "target": target })
 
 def point_in_polygon(polygon, x, y):
     """Returns True if point (x, y) is inside polygon."""

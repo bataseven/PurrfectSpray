@@ -40,7 +40,7 @@ def home_motor(motor, hall_sensor, motor_num):
         raise ValueError("Invalid motor number")
 
 
-    max_steps = int(10 / degrees_per_step)
+    max_steps = int(180 / degrees_per_step)
     initial_position = motor.current_position()
     traveled_steps = 0
 

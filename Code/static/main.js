@@ -5,6 +5,7 @@ let currentMode = "idle"; // "idle", "follow", "tracking"
 let tipHidden = false;
 let videoTip = null;
 let hasControl = false;
+let isTrackingActive = false;
 let fadeTimeout = null;
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -24,6 +25,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let lastVideoTime = 0;
     let staleCounter = 0;
+    const modeIndicator = document.getElementById("video-mode-indicator");
 
     setInterval(() => {
         const video = document.getElementById("video-feed");
@@ -93,6 +95,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     video.style.pointerEvents = "auto";
                     webrtcConnected = true;
                     console.log("[RTC] Video playback started");
+                    if (modeIndicator) modeIndicator.style.display = "block";
                     resolve();
                     if (videoTip && !tipHidden) {
                         videoTip.classList.add("show");
@@ -148,7 +151,6 @@ document.addEventListener("DOMContentLoaded", function () {
         if (spinner) spinner.style.display = 'none';
         if (video) video.style.display = 'inline';
 
-        const modeIndicator = document.getElementById("video-mode-indicator");
         if (modeIndicator) modeIndicator.style.display = 'block';
 
         // show tip on initial load
@@ -302,15 +304,19 @@ document.addEventListener("DOMContentLoaded", function () {
             showToast("Auto Tracking Stopped");
             autoModeActive = false;
         }
-
+        isTrackingActive = data.auto_mode;
         if (data.auto_mode) {
+            isTrackingActive = true;
             updateModeIndicator(`Tracking ${data.target || "Target"}`, "fa-bullseye");
             autoBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Auto Tracking';
             indicator.classList.remove("off");
             indicator.classList.add("on");
             indicator.innerHTML = '<i class="fas fa-bullseye"></i> Auto Tracking: On';
         } else {
-            updateModeIndicator("Idle", "fa-circle");
+            isTrackingActive = false;
+            if(!followMode) {
+                updateModeIndicator("Idle", "fa-circle");
+            }
             autoBtn.innerHTML = '<i class="fas fa-play"></i> Start Auto Tracking';
             indicator.classList.remove("on");
             indicator.classList.add("off");
@@ -446,13 +452,31 @@ document.addEventListener("DOMContentLoaded", function () {
         socket.emit("click_target", { x, y });
     });
 
+    socket.on("target_updated", data => {
+        const newTarget = data.target;
+        selectedTarget = newTarget;
+        
+        // Update which button is selected
+        document.querySelectorAll(".target-btn").forEach(btn => {
+            if (btn.dataset.target === newTarget) {
+                btn.classList.add("selected");
+            } else {
+                btn.classList.remove("selected");
+
+            }
+        });
+
+        if (isTrackingActive) {
+            updateModeIndicator(`Tracking ${newTarget}`, "fa-bullseye");
+        }
+    });
+
     document.querySelectorAll(".target-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".target-btn").forEach(b => b.classList.remove("selected"));
             btn.classList.add("selected");
-
+            
             selectedTarget = btn.dataset.target;
-
             // Emit to server so it can update app_state.tracking_target
             socket.emit("update_target", { target: selectedTarget });
         });
@@ -462,7 +486,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const activeSid = data.sid;
         const isController = (activeSid === mySocketId);
 
-        if (!isController && hasControl) {
+        // And if the toast is not already shown
+        if (!isController && hasControl && !document.getElementById("mode-toast").classList.contains("show")) {
             hasControl = false;
             showToast("Another client took control.");
 

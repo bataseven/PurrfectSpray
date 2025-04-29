@@ -109,6 +109,12 @@ h2 i {
   gap: 10px;
 }
 
+.control-btn:active {
+  transform: scale(0.97);
+  background-color: #2a6ad4;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 .control-btn:hover {
   background-color: #3367d6;
 }
