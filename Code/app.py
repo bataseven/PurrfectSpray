@@ -1,5 +1,8 @@
 from gevent import monkey # type: ignore
 monkey.patch_all(subprocess=False, thread=False) # type: ignore
+import os
+from dotenv import load_dotenv
+load_dotenv(override=True)
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
 from app_state import app_state
 import joblib
@@ -7,7 +10,6 @@ from app_utils import get_cpu_temp, register_shutdown
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from camera import capture_and_process, detect_in_background, stream_frames_over_zmq, set_detector
-from dotenv import load_dotenv
 from flask_socketio import SocketIO, emit
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from logging.handlers import RotatingFileHandler
@@ -15,7 +17,6 @@ import requests
 import logging
 import threading
 import time
-import os
 import json
 import cv2 
 import numpy as np
@@ -64,7 +65,6 @@ motor_active = False
 water_gun_active = False
 
 # Load environment variables
-load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 WEB_PASSWORD = os.getenv("WEB_PASSWORD")
 
@@ -142,7 +142,7 @@ def offer_proxy():
 def on_connect():
     if app_state.viewer_count == 0:
         if not laser_pin.value:
-            laser_pin.on()
+            threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'On'})
     app_state.viewer_count += 1
     app_state.socketio.emit("viewer_count", {"count": app_state.viewer_count})
@@ -182,12 +182,12 @@ def on_disconnect():
         })
         # Turn off the laser if no viewers are connected
         if laser_pin.value:
-            laser_pin.off()
+            threading.Thread(target=lambda: laser_pin.off(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'Off'})
     elif app_state.viewer_count == 1:
         # If only one viewer is left, turn on the laser
         if not laser_pin.value:
-            laser_pin.on()
+            threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'On'})
 
 
@@ -469,8 +469,8 @@ def start_background_threads():
     logger.info("Background threads started")
 
 
-start_background_threads()
 
 if __name__ == '__main__':
+    start_background_threads()
     socketio.run(app, host='0.0.0.0', port=5000,
                  debug=True, use_reloader=False)

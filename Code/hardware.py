@@ -16,7 +16,7 @@ if not USE_REMOTE_GIMBAL or GPIO_ENABLED:
     enable_pin_2 = OutputDevice(4, active_high=False, initial_value=False)
 
 else:
-    from Code.gimbal_client import send_gimbal_command  # import safely from your ZMQ client
+    from gimbal_client import send_gimbal_command  # import safely from your ZMQ client
 
     class RemotePin:
         def __init__(self, name):
@@ -30,6 +30,9 @@ else:
         def off(self):
             self.value = False
             send_gimbal_command({"cmd": self.name, "on": False})
+            
+        def close(self):
+            self.off()
 
     # Replace these names with the keys expected by your gimbal_server.py
     hall_sensor_1 = RemotePin("sensor1")  # if needed, or leave dummy

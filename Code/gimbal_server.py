@@ -2,11 +2,13 @@ import zmq
 import json
 import time
 import threading
-from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
+from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2, homing_procedure
 from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2
 from app_state import app_state
 import os
 import argparse
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 # Parse --gpio flag
 parser = argparse.ArgumentParser()
@@ -18,16 +20,25 @@ USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
 
 if USE_REMOTE_GIMBAL and args.gpio:
     os.environ["GIMBAL_GPIO_ENABLED"] = "1"
+    print("[Gimbal Server] GPIO initialization enabled")
 
 context = zmq.Context()
 
+GIMBAL_PORT = int(os.getenv("GIMBAL_PORT", 5555))
+GIMBAL_SUB_PORT = int(os.getenv("GIMBAL_SUB_PORT", 5556))
+
 # REP socket for receiving commands
 rep_socket = context.socket(zmq.REP)
-rep_socket.bind("tcp://0.0.0.0:5555")
+rep_socket.bind(f"tcp://0.0.0.0:{GIMBAL_PORT}")
 
 # PUB socket for telemetry
 pub_socket = context.socket(zmq.PUB)
-pub_socket.bind("tcp://0.0.0.0:5556")
+pub_socket.bind(f"tcp://0.0.0.0:{GIMBAL_SUB_PORT}")
+
+if os.getenv("GIMBAL_GPIO_ENABLED") == "1":
+    print("[Gimbal Server] Running homing procedure...")
+    app_state.homing_complete = homing_procedure()
+    print("[Gimbal Server] Homing complete." if app_state.homing_complete else "[Gimbal Server] Homing failed.")
 
 def publish_status_loop():
     while True:

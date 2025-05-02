@@ -2,21 +2,25 @@ from aiohttp import web
 from aiohttp_middlewares import cors_middleware
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from av import VideoFrame
-
+from dotenv import load_dotenv
+load_dotenv(override=True)
 import numpy as np
 import base64
 import asyncio
 import cv2
 import zmq
 import zmq.asyncio
+import os
 
 pcs = set()
 latest_zmq_frame = None
 
+FRAME_PUB_PORT = int(os.getenv("FRAME_PUB_PORT", 5555))
+
 # ZMQ subscriber
 context = zmq.asyncio.Context()
 sub = context.socket(zmq.SUB)
-sub.connect("tcp://localhost:5555")
+sub.connect(f"tcp://localhost:{FRAME_PUB_PORT}")
 sub.setsockopt_string(zmq.SUBSCRIBE, "")
 
 

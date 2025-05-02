@@ -147,10 +147,12 @@ def detect_in_background():
             time.sleep(2)
 
 
+FRAME_PUB_PORT = int(os.getenv("FRAME_PUB_PORT", 5555))
+
 # Set up ZMQ publisher
 context = zmq.Context()
 socket = context.socket(zmq.PUB)
-socket.bind("tcp://*:5555")  # Bind to localhost port 5555
+socket.bind(f"tcp://*:{FRAME_PUB_PORT}")  # Bind to localhost port 5555
 
 
 def stream_frames_over_zmq():

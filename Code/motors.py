@@ -45,11 +45,14 @@ if USE_REMOTE_GIMBAL and not GPIO_ENABLED:
 
         def current_position(self):
             return self._position
+        
+        def disable_outputs(self):
+            pass
 
     Motor1 = RemoteMotor(1, DEGREES_PER_STEP_1)
     Motor2 = RemoteMotor(2, DEGREES_PER_STEP_2)
 
-    def homing_procedure():
+    def homing_procedure(skip=False):
         print("[Remote] Skipping homing — expected to be done on Gimbal Pi.")
         app_state.homing_complete = True
         app_state.homing_error = False
