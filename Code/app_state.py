@@ -31,5 +31,14 @@ class AppState:
 
         self.latest_slider_angles = None
         
+        self.motor1_deg = 0.0
+        self.motor2_deg = 0.0
+        self.laser_on = False
+        self.sensor1_triggered = False
+        self.sensor2_triggered = False
+        
+        # ZMQ telemetry
+        self.gimbal_status = {}
+        
 # Singleton instance to import everywhere
 app_state = AppState()

@@ -19,6 +19,7 @@ import os
 import json
 import cv2 
 import numpy as np
+from gimbal_client import listen_for_telemetry, update_gimbal_status_from_telemetry
 
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
@@ -75,15 +76,11 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 
 # Simple in-memory user model
-
-
 class User(UserMixin):
     def __init__(self, id):
         self.id = id
 
 # For Flask-Login to find the current user
-
-
 @login_manager.user_loader
 def load_user(user_id):
     return User(user_id)
@@ -426,49 +423,49 @@ def motor_loop():
     except Exception as e:
         logger.exception("Error in motor_loop")
 
-    except Exception as e:
-        logger.exception("Error in motor_loop")
-
-
-def fan_loop():
-    try:
-        while True:
-            cpu_temp = get_cpu_temp()
-            if cpu_temp > 76:
-                fan_pin.on()
-            elif cpu_temp < 72:
-                fan_pin.off()
-            time.sleep(1)
-    except Exception as e:
-        logger.exception("Error in fan_loop")
-
 
 def status_broadcast_loop():
     try:
         while True:
             socketio.emit('status_update', {
-                'motor1': Motor1.current_position() * DEGREES_PER_STEP_1,
-                'motor2': Motor2.current_position() * DEGREES_PER_STEP_2,
+                'motor1': app_state.motor1_deg or 0.0,
+                'motor2': app_state.motor2_deg or 0.0,
                 'cpu_temp': get_cpu_temp(),
-                'laser': laser_pin.value,
+                'laser': app_state.laser_on,
                 'homing': app_state.homing_complete,
-                'sensor1': not hall_sensor_1.value,
-                'sensor2': not hall_sensor_2.value,
-                'homing_error': app_state.homing_error
+                'homing_error': app_state.homing_error,
+                'sensor1': app_state.sensor1_triggered,
+                'sensor2': app_state.sensor2_triggered
             })
             time.sleep(0.75)
     except Exception as e:
         logger.exception("Error in status_broadcast_loop")
 
 
+def start_local_gimbal_status_updater():
+    if os.getenv("USE_REMOTE_GIMBAL", "False") == "True":
+        return
+    def _worker():
+        while True:
+            app_state.motor1_deg = Motor1.current_position() * DEGREES_PER_STEP_1
+            app_state.motor2_deg = Motor2.current_position() * DEGREES_PER_STEP_2
+            app_state.laser_on = laser_pin.value
+            app_state.sensor1_triggered = not hall_sensor_1.value
+            app_state.sensor2_triggered = not hall_sensor_2.value
+            time.sleep(0.2)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 def start_background_threads():
     register_shutdown()
     threading.Thread(target=motor_loop, daemon=True).start()
-    # threading.Thread(target=fan_loop, daemon=True).start()
     threading.Thread(target=status_broadcast_loop, daemon=True).start()
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=detect_in_background, daemon=True).start()
     threading.Thread(target=stream_frames_over_zmq, daemon=True).start()
+    listen_for_telemetry(lambda status: update_gimbal_status_from_telemetry(status))
+    start_local_gimbal_status_updater()
     logger.info("Background threads started")
 
 

@@ -4,6 +4,12 @@ from AccelStepper import AccelStepper, DRIVER
 import os
 from hardware import hall_sensor_1, hall_sensor_2
 from app_state import app_state
+from gimbal_client import send_gimbal_command
+import logging
+logger = logging.getLogger("App")  # reuse app logger if shared context
+
+USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
+GPIO_ENABLED = os.getenv("GIMBAL_GPIO_ENABLED", "False") == "1"
 
 # Constants
 STEPS_PER_REV = 200
@@ -16,17 +22,68 @@ DEGREES_PER_STEP_2 = 360 / STEPS_PER_REV * MICROSTEPS_2 * GEAR_RATIO_2
 STEPPER_MAX_SPEED = 8000
 STEPPER_ACCELERATION = 20000
 
-# Stepper motors
-Motor1 = AccelStepper(DRIVER, 19, 13, None, None, True)
-Motor2 = AccelStepper(DRIVER, 18, 24, None, None, True)
+if USE_REMOTE_GIMBAL and not GPIO_ENABLED:
+    class RemoteMotor:
+        def __init__(self, motor_id, degrees_per_step):
+            self.motor_id = motor_id
+            self.degrees_per_step = degrees_per_step
+            self._position = 0  # virtual position in steps
 
-# Initial config (homing speed)
-Motor1.set_max_speed(1000)
-Motor1.set_acceleration(1000)
-Motor2.set_max_speed(1000)
-Motor2.set_acceleration(1000)
+        def move_to(self, step_pos):
+            deg = step_pos * self.degrees_per_step
+            self._position = step_pos
+            send_gimbal_command({ "cmd": "move", "motor": self.motor_id, "position": deg })
 
-def home_motor(motor, hall_sensor, motor_num):
+        def run(self):
+            pass  # not needed remotely
+
+        def set_speed(self, *_):
+            pass
+
+        def set_acceleration(self, *_):
+            pass
+
+        def current_position(self):
+            return self._position
+
+    Motor1 = RemoteMotor(1, DEGREES_PER_STEP_1)
+    Motor2 = RemoteMotor(2, DEGREES_PER_STEP_2)
+
+    def homing_procedure():
+        print("[Remote] Skipping homing — expected to be done on Gimbal Pi.")
+        app_state.homing_complete = True
+        app_state.homing_error = False
+        return True
+else:
+    from AccelStepper import AccelStepper, DRIVER
+
+    Motor1 = AccelStepper(DRIVER, 19, 13, None, None, True)
+    Motor2 = AccelStepper(DRIVER, 18, 24, None, None, True)
+
+    Motor1.set_max_speed(1000)
+    Motor1.set_acceleration(1000)
+    Motor2.set_max_speed(1000)
+    Motor2.set_acceleration(1000)
+
+    def homing_procedure():
+        try:
+            home_motor(Motor1, hall_sensor_1, 1)
+            home_motor(Motor2, hall_sensor_2, 2)
+            Motor1.set_max_speed(STEPPER_MAX_SPEED)
+            Motor1.set_acceleration(STEPPER_ACCELERATION)
+            Motor2.set_max_speed(STEPPER_MAX_SPEED)
+            Motor2.set_acceleration(STEPPER_ACCELERATION)
+            logger.info("Homing procedure complete and speed limits set")
+            app_state.homing_error = False
+            app_state.homing_complete = True
+            return True
+        except Exception as e:
+            logger.exception("Error during homing_procedure")
+            app_state.homing_error = True
+            app_state.homing_complete = False
+            return False
+
+def home_motor(motor: AccelStepper, hall_sensor, motor_num):
     print(f"Homing Motor {motor_num}...")
     homing_speed = 500
     motor.set_speed(homing_speed)
@@ -94,24 +151,3 @@ def home_motor(motor, hall_sensor, motor_num):
     motor.set_current_position(0)
     print(f"Motor {motor_num} homing complete. New zero position set.")
 
-
-import logging
-logger = logging.getLogger("App")  # reuse app logger if shared context
-
-def homing_procedure():
-    try:
-        home_motor(Motor1, hall_sensor_1, 1)
-        home_motor(Motor2, hall_sensor_2, 2)
-        Motor1.set_max_speed(STEPPER_MAX_SPEED)
-        Motor1.set_acceleration(STEPPER_ACCELERATION)
-        Motor2.set_max_speed(STEPPER_MAX_SPEED)
-        Motor2.set_acceleration(STEPPER_ACCELERATION)
-        logger.info("Homing procedure complete and speed limits set")
-        app_state.homing_error = False
-        app_state.homing_complete = True
-        return True
-    except Exception as e:
-        logger.exception("Error during homing_procedure")
-        app_state.homing_error = True
-        app_state.homing_complete = False
-        return False
