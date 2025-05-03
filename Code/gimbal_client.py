@@ -31,6 +31,7 @@ def update_gimbal_status_from_telemetry(status):
     app_state.homing_error = status.get("homing_error", False)
     app_state.sensor1_triggered = status.get("sensor1", False)
     app_state.sensor2_triggered = status.get("sensor2", False)
+    app_state.gimbal_cpu_temp = status.get("gimbal_cpu_temp", None)
 
 def listen_for_telemetry(callback):
     if not USE_REMOTE_GIMBAL:
