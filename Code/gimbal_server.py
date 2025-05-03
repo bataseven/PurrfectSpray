@@ -4,6 +4,7 @@ import threading
 import zmq
 from dotenv import load_dotenv
 import signal
+from app_utils import get_cpu_temp
 
 load_dotenv(override=True)
 
@@ -53,7 +54,8 @@ def publish_status_loop(pub_socket: zmq.Socket):
                 "homing": app_state.homing_complete,
                 "homing_error": app_state.homing_error,
                 "sensor1": not hall_sensor_1.value,
-                "sensor2": not hall_sensor_2.value
+                "sensor2": not hall_sensor_2.value,
+                "gimbal_cpu_temp": get_cpu_temp()
             }
             pub_socket.send_json(status)
             time.sleep(0.5)

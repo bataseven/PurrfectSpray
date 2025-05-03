@@ -264,6 +264,9 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
         document.getElementById("cpu-temp").textContent = data.cpu_temp + "°C";
+        document.getElementById("gimbal-cpu-temp").textContent =
+  data.gimbal_cpu_temp !== undefined ? data.gimbal_cpu_temp.toFixed(1) + "°C" : "-";
+
 
         const laserStatus = document.getElementById("laser-status");
         laserStatus.textContent = data.laser ? "On" : "Off";

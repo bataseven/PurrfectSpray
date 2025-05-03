@@ -426,7 +426,8 @@ def status_broadcast_loop():
                 'homing': app_state.homing_complete,
                 'homing_error': app_state.homing_error,
                 'sensor1': app_state.sensor1_triggered,
-                'sensor2': app_state.sensor2_triggered
+                'sensor2': app_state.sensor2_triggered,
+                'gimbal_cpu_temp': app_state.gimbal_cpu_temp
             })
             time.sleep(0.75)
     except Exception as e:

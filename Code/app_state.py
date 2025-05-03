@@ -31,6 +31,7 @@ class AppState:
         self.last_laser_pixel = None
 
         self.latest_slider_angles = None
+        self.gimbal_cpu_temp = None
         
         self.motor1_deg = 0.0
         self.motor2_deg = 0.0
