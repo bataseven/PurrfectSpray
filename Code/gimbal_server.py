@@ -5,6 +5,9 @@ import zmq
 from dotenv import load_dotenv
 import signal
 
+load_dotenv(override=True)
+
+assert os.getenv("USE_REMOTE_GIMBAL", "False") == "True", "This script is intended to run when USE_REMOTE_GIMBAL is True."
 # Always force remote gimbal mode
 os.environ["USE_REMOTE_GIMBAL"] = "False"
 
@@ -13,8 +16,6 @@ from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2, homin
 from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2
 from app_state import app_state
 
-# Load .env variables
-load_dotenv(override=True)
 
 def create_zmq_sockets():
     context = zmq.Context()
