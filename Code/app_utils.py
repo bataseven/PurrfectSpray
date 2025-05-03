@@ -16,6 +16,7 @@ def graceful_exit(signum, frame):
     print("Shutting down cleanly...")
 
     def shutdown_sequence():
+        print("Running shutdown sequence...")
         app_state.shutdown_event.set()
         fan_pin.off()
         laser_pin.off()
