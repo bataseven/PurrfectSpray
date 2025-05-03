@@ -14,11 +14,6 @@ context = zmq.Context()
 cmd_socket = context.socket(zmq.REQ)
 cmd_socket.connect(f"tcp://{GIMBAL_HOST}:{GIMBAL_PORT}")
 
-# -- Telemetry socket
-sub_socket = context.socket(zmq.SUB)
-sub_socket.connect(f"tcp://{GIMBAL_HOST}:{GIMBAL_SUB_PORT}")
-sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
-
 def send_gimbal_command(command: dict) -> dict:
     if not USE_REMOTE_GIMBAL:
         return {"error": "send_gimbal_command called in local mode"}
@@ -40,12 +35,24 @@ def update_gimbal_status_from_telemetry(status):
 def listen_for_telemetry(callback):
     if not USE_REMOTE_GIMBAL:
         return
-    def _worker():
-        while True:
-            try:
-                message = sub_socket.recv_json()
-                callback(message)
-            except Exception as e:
-                print(f"[Telemetry Error] {e}")
-    threading.Thread(target=_worker, daemon=True).start()
 
+    context = zmq.Context()
+    telemetry_socket = context.socket(zmq.SUB)
+    telemetry_socket.connect(f"tcp://{GIMBAL_HOST}:{GIMBAL_SUB_PORT}")
+    telemetry_socket.setsockopt_string(zmq.SUBSCRIBE, '')
+
+    def _worker():
+        while not app_state.shutdown_event.is_set():
+            try:
+                if telemetry_socket.poll(timeout=100):  # 100 ms timeout
+                    message = telemetry_socket.recv_json()
+                    callback(message)
+            except Exception as e:
+                if not app_state.shutdown_event.is_set():
+                    print(f"[Telemetry Error] {e}")
+                break
+
+        telemetry_socket.close()
+        context.term()
+
+    threading.Thread(target=_worker, daemon=True).start()

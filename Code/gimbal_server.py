@@ -1,41 +1,42 @@
-import zmq
+import os
 import time
 import threading
-import os
-os.environ["USE_REMOTE_GIMBAL"] = "False"  # This is always set to False in this script
+import zmq
+from dotenv import load_dotenv
+
+# Always force remote gimbal mode
+os.environ["USE_REMOTE_GIMBAL"] = "False"
+
 from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2, homing_procedure
 from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2
 from app_state import app_state
-import argparse
-from dotenv import load_dotenv
+
+# Load .env variables
 load_dotenv(override=True)
 
-context = zmq.Context()
+def create_zmq_sockets():
+    context = zmq.Context()
+    gimbal_port = int(os.getenv("GIMBAL_PORT", 5555))
+    gimbal_sub_port = int(os.getenv("GIMBAL_SUB_PORT", 5556))
 
-GIMBAL_PORT = int(os.getenv("GIMBAL_PORT", 5555))
-GIMBAL_SUB_PORT = int(os.getenv("GIMBAL_SUB_PORT", 5556))
+    rep_socket = context.socket(zmq.REP)
+    rep_socket.bind(f"tcp://0.0.0.0:{gimbal_port}")
 
-# REP socket for receiving commands
-rep_socket = context.socket(zmq.REP)
-rep_socket.bind(f"tcp://0.0.0.0:{GIMBAL_PORT}")
+    pub_socket = context.socket(zmq.PUB)
+    pub_socket.bind(f"tcp://0.0.0.0:{gimbal_sub_port}")
 
-# PUB socket for telemetry
-pub_socket = context.socket(zmq.PUB)
-pub_socket.bind(f"tcp://0.0.0.0:{GIMBAL_SUB_PORT}")
+    return rep_socket, pub_socket
 
-print("[Gimbal Server] Running homing procedure...")
-app_state.homing_complete = homing_procedure()
-print("[Gimbal Server] Homing complete." if app_state.homing_complete else "[Gimbal Server] Homing failed.")
-
-def motor_run_loop():
+def run_motor_loop():
+    print("[Gimbal Server] Running homing procedure...")
+    app_state.homing_complete = homing_procedure()
+    print("[Gimbal Server] Homing complete." if app_state.homing_complete else "[Gimbal Server] Homing failed.")
     while True:
         Motor1.run()
         Motor2.run()
         time.sleep(0.001)
 
-threading.Thread(target=motor_run_loop, daemon=True).start()
-
-def publish_status_loop():
+def publish_status_loop(pub_socket: zmq.Socket):
     while True:
         status = {
             "motor1": Motor1.current_position() * DEGREES_PER_STEP_1,
@@ -49,25 +50,17 @@ def publish_status_loop():
         pub_socket.send_json(status)
         time.sleep(0.5)
 
-threading.Thread(target=publish_status_loop, daemon=True).start()
-
-print("[Gimbal Server] Listening on port 5555 for commands...")
-
-while True:
+def handle_command(rep_socket: zmq.Socket):
     try:
-        message = rep_socket.recv_json()
+        message: dict = rep_socket.recv_json()
         print(f"[Gimbal Server] Received message: {message}")
         cmd = message.get("cmd")
 
         if cmd == "move":
             motor = message.get("motor")
             pos_deg = message.get("position", 0)
-            if motor == 1:
-                steps = int(pos_deg / DEGREES_PER_STEP_1)
-                Motor1.move_to(steps)
-            elif motor == 2:
-                steps = int(pos_deg / DEGREES_PER_STEP_2)
-                Motor2.move_to(steps)
+            steps = int(pos_deg / (DEGREES_PER_STEP_1 if motor == 1 else DEGREES_PER_STEP_2))
+            (Motor1 if motor == 1 else Motor2).move_to(steps)
             rep_socket.send_json({"status": "ok"})
 
         elif cmd == "laser":
@@ -75,9 +68,8 @@ while True:
             rep_socket.send_json({"status": "ok"})
 
         elif cmd == "spray":
-            water_gun_pin.on()
-            time.sleep(0.5)
-            water_gun_pin.off()
+            if message.get("on"):
+                water_gun_pin.spray(message.get("duration", 0.5))
             rep_socket.send_json({"status": "ok"})
 
         elif cmd == "status":
@@ -96,3 +88,16 @@ while True:
 
     except Exception as e:
         rep_socket.send_json({"error": str(e)})
+
+def main():
+    rep_socket, pub_socket = create_zmq_sockets()
+
+    threading.Thread(target=run_motor_loop, daemon=True).start()
+    threading.Thread(target=publish_status_loop, args=(pub_socket,), daemon=True).start()
+
+    print("[Gimbal Server] Listening on port 5555 for commands...")
+    while True:
+        handle_command(rep_socket)
+
+if __name__ == "__main__":
+    main()

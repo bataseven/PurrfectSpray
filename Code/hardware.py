@@ -1,15 +1,26 @@
 import os
+import threading
+import time
 
 USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
 
 if not USE_REMOTE_GIMBAL:
     from gpiozero import DigitalInputDevice, OutputDevice
 
+    class TimedOutputDevice(OutputDevice):
+        def spray(self, duration=0.5):
+            def spray_task():
+                self.on()
+                time.sleep(duration)
+                self.off()
+            threading.Thread(target=spray_task, daemon=True).start()
+
+
     hall_sensor_1 = DigitalInputDevice(6, pull_up=False)
     hall_sensor_2 = DigitalInputDevice(26, pull_up=False)
     fan_pin = OutputDevice(11, active_high=True, initial_value=True)
     laser_pin = OutputDevice(0, active_high=True, initial_value=False)
-    water_gun_pin = OutputDevice(1, active_high=True, initial_value=False)
+    water_gun_pin = TimedOutputDevice(1, active_high=True, initial_value=False)
 
     enable_pin_1 = OutputDevice(12, active_high=False, initial_value=False)
     enable_pin_2 = OutputDevice(4, active_high=False, initial_value=False)
@@ -24,15 +35,19 @@ else:
 
         def on(self):
             self.value = True
-            send_gimbal_command({"cmd": self.name, "on": True})
-
+            send_gimbal_command({"cmd": self.name, "on": True})   
+        
         def off(self):
             self.value = False
             send_gimbal_command({"cmd": self.name, "on": False})
             
+        def spray(self, duration=0.5):
+            if self.name == "spray":
+                send_gimbal_command({"cmd": "spray", "duration": duration})
+
         def close(self):
             self.off()
-
+        
     # Replace these names with the keys expected by your gimbal_server.py
     hall_sensor_1 = RemotePin("sensor1")  # if needed, or leave dummy
     hall_sensor_2 = RemotePin("sensor2")

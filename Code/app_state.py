@@ -2,6 +2,7 @@
 from threading import Event, Lock
 from flask_socketio import SocketIO
 from typing import Optional
+import threading
 
 class AppState:
     def __init__(self):
@@ -36,6 +37,10 @@ class AppState:
         self.laser_on = False
         self.sensor1_triggered = False
         self.sensor2_triggered = False
+        
+        self.water_gun_active = False
+        
+        self.shutdown_event = threading.Event()
         
         # ZMQ telemetry
         self.gimbal_status = {}

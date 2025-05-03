@@ -274,19 +274,13 @@ def handle_laser():
 
 @socketio.on('shoot')
 def handle_shoot():
-    global water_gun_active
-    if water_gun_active:
+    if app_state.water_gun_active:
         emit('shoot_ack', {'status': 'busy'})
         return
-    water_gun_active = True
-    water_gun_pin.on()
-
-    def off():
-        global water_gun_active
-        time.sleep(0.5)
-        water_gun_pin.off()
-        water_gun_active = False
-    threading.Thread(target=off).start()
+    app_state.water_gun_active = True
+    water_gun_pin.spray()
+    # Reset flag after duration
+    threading.Timer(0.5, lambda: setattr(app_state, 'water_gun_active', False)).start()
     emit('shoot_ack', {'status': 'fired'})
 
 
@@ -379,7 +373,24 @@ def find_closest_surface(x, y):
             closest_idx = idx
     return closest_idx
 
-def motor_loop():
+def perform_interpolated_movement(current_coords, last_steps):
+    x, y = current_coords
+    theta1, theta2 = predict_angles(x, y)
+    steps1 = int(theta1 / DEGREES_PER_STEP_1)
+    steps2 = int(theta2 / DEGREES_PER_STEP_2)
+
+    if last_steps == (None, None):
+        last_steps = (Motor1.current_position(), Motor2.current_position())
+
+    interp1 = int(last_steps[0] + (steps1 - last_steps[0]) * 0.1)
+    interp2 = int(last_steps[1] + (steps2 - last_steps[1]) * 0.1)
+
+    Motor1.move_to(interp1)
+    Motor2.move_to(interp2)
+
+    return (interp1, interp2)
+
+def run_motor_loop():
     try:
         logger.info("Starting homing procedure")
         app_state.homing_complete = homing_procedure()
@@ -391,38 +402,18 @@ def motor_loop():
         while True:
             if motor_active and app_state.homing_complete and app_state.target_lock.is_set():
                 app_state.target_lock.clear()
-
                 new_coords = app_state.latest_target_coords
                 if new_coords != (None, None):
                     current_coords = new_coords  # Snap to the latest target
 
-            # Interpolate toward the current_coords if defined
             if motor_active and app_state.homing_complete and current_coords:
-                x, y = current_coords
-                theta1, theta2 = predict_angles(x, y)
-                steps1 = int(theta1 / DEGREES_PER_STEP_1)
-                steps2 = int(theta2 / DEGREES_PER_STEP_2)
-
-                # Smooth movement: don't jump all the way
-                if last_steps == (None, None):
-                    last_steps = (Motor1.current_position(),
-                                  Motor2.current_position())
-
-                interp1 = int(last_steps[0] + (steps1 - last_steps[0]) * 0.1)
-                interp2 = int(last_steps[1] + (steps2 - last_steps[1]) * 0.1)
-
-                Motor1.move_to(interp1)
-                Motor2.move_to(interp2)
-
-                last_steps = (interp1, interp2)
+                last_steps = perform_interpolated_movement(current_coords, last_steps)
 
             Motor1.run()
             Motor2.run()
             time.sleep(0.001)
-
     except Exception as e:
         logger.exception("Error in motor_loop")
-
 
 def status_broadcast_loop():
     try:
@@ -459,7 +450,7 @@ def start_local_gimbal_status_updater():
 
 def start_background_threads():
     register_shutdown()
-    threading.Thread(target=motor_loop, daemon=True).start()
+    threading.Thread(target=run_motor_loop, daemon=True).start()
     threading.Thread(target=status_broadcast_loop, daemon=True).start()
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=detect_in_background, daemon=True).start()
