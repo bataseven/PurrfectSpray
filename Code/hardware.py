@@ -1,9 +1,8 @@
 import os
 
 USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
-GPIO_ENABLED = os.getenv("GIMBAL_GPIO_ENABLED") == "1"
 
-if not USE_REMOTE_GIMBAL or GPIO_ENABLED:
+if not USE_REMOTE_GIMBAL:
     from gpiozero import DigitalInputDevice, OutputDevice
 
     hall_sensor_1 = DigitalInputDevice(6, pull_up=False)

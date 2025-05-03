@@ -9,8 +9,7 @@ import logging
 logger = logging.getLogger("App")  # reuse app logger if shared context
 
 USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
-GPIO_ENABLED = os.getenv("GIMBAL_GPIO_ENABLED", "False") == "1"
-
+print(f"[Motors] Running with USE_REMOTE_GIMBAL={USE_REMOTE_GIMBAL}")
 # Constants
 STEPS_PER_REV = 200
 GEAR_RATIO_1 = 16 / 80
@@ -22,7 +21,7 @@ DEGREES_PER_STEP_2 = 360 / STEPS_PER_REV * MICROSTEPS_2 * GEAR_RATIO_2
 STEPPER_MAX_SPEED = 8000
 STEPPER_ACCELERATION = 20000
 
-if USE_REMOTE_GIMBAL and not GPIO_ENABLED:
+if USE_REMOTE_GIMBAL:
     class RemoteMotor:
         def __init__(self, motor_id, degrees_per_step):
             self.motor_id = motor_id
@@ -52,7 +51,7 @@ if USE_REMOTE_GIMBAL and not GPIO_ENABLED:
     Motor1 = RemoteMotor(1, DEGREES_PER_STEP_1)
     Motor2 = RemoteMotor(2, DEGREES_PER_STEP_2)
 
-    def homing_procedure(skip=False):
+    def homing_procedure():
         print("[Remote] Skipping homing — expected to be done on Gimbal Pi.")
         app_state.homing_complete = True
         app_state.homing_error = False
