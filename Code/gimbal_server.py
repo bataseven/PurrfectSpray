@@ -4,7 +4,6 @@ import threading
 import zmq
 from dotenv import load_dotenv
 import signal
-from app_utils import get_cpu_temp
 
 load_dotenv(override=True)
 
@@ -12,7 +11,7 @@ assert os.getenv("USE_REMOTE_GIMBAL", "False") == "True", "This script is intend
 # Always force remote gimbal mode
 os.environ["USE_REMOTE_GIMBAL"] = "False"
 
-from app_utils import graceful_exit, register_shutdown
+from app_utils import graceful_exit, register_shutdown, get_cpu_temp
 from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2, homing_procedure
 from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2
 from app_state import app_state
