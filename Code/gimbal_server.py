@@ -3,10 +3,12 @@ import time
 import threading
 import zmq
 from dotenv import load_dotenv
+import signal
 
 # Always force remote gimbal mode
 os.environ["USE_REMOTE_GIMBAL"] = "False"
 
+from app_utils import graceful_exit, register_shutdown
 from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2, homing_procedure
 from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2
 from app_state import app_state
@@ -31,24 +33,32 @@ def run_motor_loop():
     print("[Gimbal Server] Running homing procedure...")
     app_state.homing_complete = homing_procedure()
     print("[Gimbal Server] Homing complete." if app_state.homing_complete else "[Gimbal Server] Homing failed.")
-    while True:
-        Motor1.run()
-        Motor2.run()
-        time.sleep(0.001)
+    while not app_state.shutdown_event.is_set():
+        try:
+            Motor1.run()
+            Motor2.run()
+            time.sleep(0.001)
+        except Exception as e:
+            print(f"[Motor Loop Error] {e}")
+            break
 
 def publish_status_loop(pub_socket: zmq.Socket):
-    while True:
-        status = {
-            "motor1": Motor1.current_position() * DEGREES_PER_STEP_1,
-            "motor2": Motor2.current_position() * DEGREES_PER_STEP_2,
-            "laser": laser_pin.value,
-            "homing": app_state.homing_complete,
-            "homing_error": app_state.homing_error,
-            "sensor1": not hall_sensor_1.value,
-            "sensor2": not hall_sensor_2.value
-        }
-        pub_socket.send_json(status)
-        time.sleep(0.5)
+    while not app_state.shutdown_event.is_set():
+        try:
+            status = {
+                "motor1": Motor1.current_position() * DEGREES_PER_STEP_1,
+                "motor2": Motor2.current_position() * DEGREES_PER_STEP_2,
+                "laser": laser_pin.value,
+                "homing": app_state.homing_complete,
+                "homing_error": app_state.homing_error,
+                "sensor1": not hall_sensor_1.value,
+                "sensor2": not hall_sensor_2.value
+            }
+            pub_socket.send_json(status)
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"[Publish Status Loop Error] {e}")
+            break
 
 def handle_command(rep_socket: zmq.Socket):
     try:
@@ -90,14 +100,16 @@ def handle_command(rep_socket: zmq.Socket):
         rep_socket.send_json({"error": str(e)})
 
 def main():
+    register_shutdown()
     rep_socket, pub_socket = create_zmq_sockets()
-
     threading.Thread(target=run_motor_loop, daemon=True).start()
     threading.Thread(target=publish_status_loop, args=(pub_socket,), daemon=True).start()
-
     print("[Gimbal Server] Listening on port 5555 for commands...")
-    while True:
-        handle_command(rep_socket)
+    try:
+        while True:
+            handle_command(rep_socket)
+    except KeyboardInterrupt:
+        graceful_exit(None, None)
 
 if __name__ == "__main__":
     main()
