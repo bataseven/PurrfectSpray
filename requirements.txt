@@ -21,3 +21,4 @@ scikit_learn
 Shapely
 torch
 ultralytics
+lgpio
