@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv(override=True)
 import time
 import threading
 import json
@@ -9,6 +11,7 @@ from app_state import app_state
 os.environ["CALIBRATION_MODE"] = "1"
 
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
+from gimbal_client import listen_for_telemetry, update_gimbal_status_from_telemetry
 
 import time
 import cv2
