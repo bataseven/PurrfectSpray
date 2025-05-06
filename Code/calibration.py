@@ -255,15 +255,10 @@ def move_motor_to_position(motor_num, position_deg):
         steps = int(position_deg / DEGREES_PER_STEP_2)
         Motor2.move_to(steps)
 
-last_time = time.time()
 @app.route('/set_motor_position')
 def set_motor_position():
     motor_num = request.args.get('motor', type=int)
     position_deg = request.args.get('position', type=float)
-    global last_time
-    if last_time + 0.1 > time.time():
-        return jsonify({'status': 'too fast'}), 429
-    last_time = time.time()
     move_motor_to_position(motor_num, position_deg)
     return jsonify({'status': f'Motor {motor_num} set to {position_deg} degrees'})
 

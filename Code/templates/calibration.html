@@ -54,6 +54,8 @@
     const label2 = document.getElementById('theta2-label');
     const statusText = document.getElementById('status');
     const recordBtn = document.getElementById('record-btn');
+    let lastMotor1Pos = 0;
+    let lastMotor2Pos = 0;
     let lastPixel = null;
 
     // Show spinner until video is loaded
@@ -66,18 +68,39 @@
       if (modeIndicator) modeIndicator.style.display = 'block';
     };
 
-    function updateMotor(motor, value) {
+    function debounce(func, delay) {
+      let timer;
+      return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => func(...args), delay);
+      };
+    }
+
+
+
+    const debouncedMotor1 = debounce((v) => sendMotorUpdate(1, v), 75);
+    const debouncedMotor2 = debounce((v) => sendMotorUpdate(2, v), 75);
+
+
+    function sendMotorUpdate(motor, value) {
+      if (motor === 1 && value === lastMotor1Pos) return;
+      if (motor === 2 && value === lastMotor2Pos) return;
       fetch(`/set_motor_position?motor=${motor}&position=${value}`);
+      if (motor === 1) {
+        lastMotor1Pos = value;
+      } else if (motor === 2) {
+        lastMotor2Pos = value;
+      }
     }
 
     theta1.addEventListener('input', () => {
       label1.textContent = theta1.value;
-      updateMotor(1, theta1.value);
+      debouncedMotor1(theta1.value);
     });
 
     theta2.addEventListener('input', () => {
       label2.textContent = theta2.value;
-      updateMotor(2, theta2.value);
+      debouncedMotor2(theta2.value);
     });
 
     document.getElementById('video-feed').addEventListener('click', function (event) {
