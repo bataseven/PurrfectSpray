@@ -167,7 +167,7 @@ def start_auto_calibration():
                 move_motor_to_position(1, theta1)
                 move_motor_to_position(2, theta2)
                 app_state.latest_slider_angles = (theta1, theta2)
-                time.sleep(1.0)  # allow time to settle
+                time.sleep(2.0)  # allow time to settle
 
                 if app_state.last_laser_pixel:
                     px, py = app_state.last_laser_pixel
@@ -255,10 +255,15 @@ def move_motor_to_position(motor_num, position_deg):
         steps = int(position_deg / DEGREES_PER_STEP_2)
         Motor2.move_to(steps)
 
+last_time = time.time()
 @app.route('/set_motor_position')
 def set_motor_position():
     motor_num = request.args.get('motor', type=int)
     position_deg = request.args.get('position', type=float)
+    global last_time
+    if last_time + 0.1 > time.time():
+        return jsonify({'status': 'too fast'}), 429
+    last_time = time.time()
     move_motor_to_position(motor_num, position_deg)
     return jsonify({'status': f'Motor {motor_num} set to {position_deg} degrees'})
 
@@ -328,6 +333,7 @@ def motor_loop():
 
 if __name__ == '__main__':
     laser_pin.on()  # 🚨 TURN ON LASER HERE
+    listen_for_telemetry(lambda status: update_gimbal_status_from_telemetry(status))
     threading.Thread(target=detect_laser_dot, daemon=True).start()
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=motor_loop, daemon=True).start()
