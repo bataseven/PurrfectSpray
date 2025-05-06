@@ -10,7 +10,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector, highlight_colors
 import threading
-from app_state import app_state
+from app_state import app_state, MotorMode
 import zmq
 import base64
 import cv2
@@ -135,7 +135,7 @@ def detect_in_background():
                 latest_detections = detections
 
             for det in detections:
-                if app_state.auto_mode and det.label.lower() == app_state.tracking_target.lower():
+                if app_state.current_mode==MotorMode.TRACKING and det.label.lower() == app_state.tracking_target.lower():
                     x = int((det.box[0] + det.box[2]) / 2)
                     y = int((det.box[1] + det.box[3]) / 2)
                     app_state.latest_target_coords = (x, y)

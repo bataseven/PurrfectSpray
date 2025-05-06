@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv(override=True)
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
-from app_state import app_state
+from app_state import app_state, MotorMode
 import joblib
 from app_utils import get_cpu_temp, register_shutdown
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
@@ -149,8 +149,7 @@ def on_connect():
     print("[SOCKET] Client connected")
 
     emit('motor_status', {
-        'status': f'Tracking {app_state.tracking_target.capitalize()}' if app_state.auto_mode else 'Idle',
-        'auto_mode': app_state.auto_mode,
+        'mode': app_state.current_mode.value,
         'target': app_state.tracking_target
     })
 
@@ -173,13 +172,7 @@ def on_disconnect():
     if app_state.viewer_count == 0:
         app_state.target_lock.clear()
         app_state.latest_target_coords = (None, None)
-        app_state.auto_mode = False
-        app_state.tracking_target = None
-        socketio.emit('motor_status', {
-            'status': 'Idle',
-            'auto_mode': False,
-            'target': None
-        })
+        
         # Turn off the laser if no viewers are connected
         if laser_pin.value:
             threading.Thread(target=lambda: laser_pin.off(), daemon=True).start()
@@ -193,7 +186,7 @@ def on_disconnect():
 
 @socketio.on('click_target')
 def handle_click_target(data):
-    if app_state.auto_mode or not app_state.homing_complete:
+    if not app_state.homing_complete:
         return
 
     if app_state.active_controller_sid is None:
@@ -227,10 +220,6 @@ def handle_set_motor_position(data):
     if not app_state.homing_complete:
         return
     if not session.get("is_admin"):
-        emit('motor_status', {
-            'status': 'Unauthorized',
-            'auto_mode': False
-        })
         return
     motor_num = data.get('motor')
     position_deg = data.get('position')
@@ -284,49 +273,41 @@ def handle_shoot():
     emit('shoot_ack', {'status': 'fired'})
 
 
-@socketio.on('motor_control')
+@socketio.on('set_motor_mode')
 def handle_motor_control(data):
     global motor_active
 
-    action = data.get('action')
     target_class = data.get('target')
+    mode = data.get('mode')
+    
+    app_state.current_mode = MotorMode(mode) if mode else app_state.current_mode
+    app_state.active_controller_sid = request.sid
 
+    
     if not app_state.homing_complete:
-        # 🔁 Notify only the sender since system is not ready
         emit('motor_status', {
-            'status': 'Not ready (homing in progress)',
-            'auto_mode': False
+            'mode': app_state.current_mode.value,
         })
-        return
 
-    if action == 'start':
+    elif mode == MotorMode.TRACKING.value:
         motor_active = True
-        app_state.active_controller_sid = request.sid
-        app_state.auto_mode = True
         if target_class:
             app_state.tracking_target = target_class
-
-        # 🔁 Notify all clients about Auto Mode start
         socketio.emit('motor_status', {
-            'status': f'Tracking {app_state.tracking_target.capitalize()}',
-            'auto_mode': True,
+            'mode': app_state.current_mode.value,
             'target': app_state.tracking_target
         })
 
-    elif action == 'stop':
+    elif mode == MotorMode.IDLE.value:
         motor_active = False
-        app_state.auto_mode = False
-        app_state.active_controller_sid = None
-        # 🔁 Notify all clients about Auto Mode stop
         socketio.emit('motor_status', {
-            'status': 'Auto Mode Stopped',
-            'auto_mode': False
+            'mode': app_state.current_mode.value,
         })
-
-    else:
-        emit('motor_status', {
-            'status': 'Unknown command',
-            'auto_mode': app_state.auto_mode
+        
+    elif mode == MotorMode.FOLLOW.value:
+        motor_active = True
+        socketio.emit('motor_status', {
+            'mode': app_state.current_mode.value,
         })
 
 
@@ -423,7 +404,7 @@ def status_broadcast_loop():
                 'motor2': app_state.motor2_deg or 0.0,
                 'cpu_temp': get_cpu_temp(),
                 'laser': app_state.laser_on,
-                'homing': app_state.homing_complete,
+                'homing_complete': app_state.homing_complete,
                 'homing_error': app_state.homing_error,
                 'sensor1': app_state.sensor1_triggered,
                 'sensor2': app_state.sensor2_triggered,

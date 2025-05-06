@@ -3,13 +3,18 @@ from threading import Event, Lock
 from flask_socketio import SocketIO
 from typing import Optional
 import threading
+from enum import Enum
+
+class MotorMode(Enum):
+    IDLE = "idle"
+    FOLLOW = "follow"
+    TRACKING = "tracking"
+
 
 class AppState:
     def __init__(self):
         self.socketio: Optional[SocketIO] = None
 
-        # Auto-tracking state
-        self.auto_mode = False
         self.tracking_target = "person"
 
         # Target for motor movement
@@ -38,6 +43,8 @@ class AppState:
         self.laser_on = False
         self.sensor1_triggered = False
         self.sensor2_triggered = False
+        self.current_mode = MotorMode.IDLE
+        self.motor_active = False
         
         self.water_gun_active = False
         
