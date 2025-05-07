@@ -147,7 +147,9 @@ def detect_in_background():
                 if app_state.current_mode==MotorMode.TRACKING and det.label.lower() == app_state.tracking_target.lower():
                     x = int((det.box[0] + det.box[2]) / 2)
                     y = int((det.box[1] + det.box[3]) / 2)
-                    app_state.latest_target_coords = (x, y)
+                    app_state.latest_target_coords = (None, None)
+                    # app_state.latest_target_coords = (x, y)
+                    print(f"Detected target at ({x}, {y})")
                     app_state.target_lock.set()
                     break
 

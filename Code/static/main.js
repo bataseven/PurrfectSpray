@@ -1,8 +1,7 @@
 let isHomingComplete = false;
 let selectedTarget = "person"; // default selected target
 let currentMode = "idle"; // "idle", "follow", "tracking"
-let tipHidden = false;
-let videoTip = null;
+// let videoTip = null;
 let hasControl = false;
 let fadeTimeout = null;
 
@@ -16,7 +15,6 @@ document.addEventListener("DOMContentLoaded", function () {
         mySocketId = socket.id;
     });
 
-    videoTip = document.getElementById("video-tip");
 
     let webrtcConnected = false;
     let streamMonitorInterval = null;
@@ -26,6 +24,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const modeIndicator = document.getElementById("video-mode-indicator");
     const followBtn = document.getElementById("follow-mode-btn");
     const trackBtn = document.getElementById("start-btn");
+    const videoTip = document.getElementById("video-tip");
 
 
     setInterval(() => {
@@ -98,10 +97,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     console.log("[RTC] Video playback started");
                     if (modeIndicator) modeIndicator.style.display = "block";
                     resolve();
-                    if (videoTip && !tipHidden) {
+                    
                         videoTip.classList.add("show");
                         videoTip.classList.remove("hidden");
-                    }
+                    
                 };
             };
 
@@ -154,11 +153,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (modeIndicator) modeIndicator.style.display = 'block';
 
-        // show tip on initial load
-        if (!tipHidden && videoTip) {
+        
             videoTip.classList.add("show");
             videoTip.classList.remove("hidden");
-        }
+        
     }
 
     setTimeout(() => {
@@ -182,7 +180,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-    document.getElementById("model-select").addEventListener("change", function() {
+    document.getElementById("model-select").addEventListener("change", function () {
         const selectedModel = this.value;
         socket.emit('change_model', { model: selectedModel });
     });
@@ -282,9 +280,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // 🔁 Auto Mode Feedback
     socket.on("motor_status", data => {
         const statusEl = document.getElementById("motor-status");
-        statusEl.textContent = data.mode;
+        // Uppercase all letters of the status text
+        statusEl.textContent = data.mode.charAt(0).toUpperCase() + data.mode.slice(1);
         statusEl.className = 'status-value ' + data.mode;
         selectedTarget = data.target || selectedTarget;
+        const activeSid = data.sid;
+        const isController = (activeSid === mySocketId);
 
         if (data.mode !== currentMode) {
             if (currentMode === "tracking") {
@@ -297,6 +298,25 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             setMode(data.mode);
         }
+        if (!isController && hasControl) {
+            showToast("Another client took control.");
+            videoTip.classList.add("show");
+            videoTip.classList.remove("hidden");
+            if (fadeTimeout) {
+                clearTimeout(fadeTimeout);
+                fadeTimeout = null;
+            }
+        }
+        if (!isController) {
+            document.getElementById("motor1-slider").disabled = true;
+            document.getElementById("motor2-slider").disabled = true;
+        }
+        else {
+            document.getElementById("motor1-slider").disabled = false;
+            document.getElementById("motor2-slider").disabled = false;
+        }
+
+        hasControl = isController;
     });
 
 
@@ -324,25 +344,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 modeIndicator.classList.remove("off");
                 modeIndicator.classList.add("on");
                 modeIndicator.innerHTML = '<i class="fas fa-bullseye"></i> Mode: Tracking ' + selectedTarget;
-                showToast("Tracking: " + selectedTarget);
                 break;
         }
-    }
-
-    let toastTimeout = null;
-
-    function showToast(message) {
-        const toast = document.getElementById("mode-toast");
-        toast.textContent = message;
-        toast.classList.add("show");
-        if (toastTimeout) {
-            clearTimeout(toastTimeout);
-            toastTimeout = null;
-        }
-        toastTimeout = setTimeout(() => {
-            toast.classList.remove("show");
-            toastTimeout = null;
-        }, 1500);
     }
 
     // 🔁 Laser & Water Gun
@@ -394,77 +397,84 @@ document.addEventListener("DOMContentLoaded", function () {
         mouseY = Math.round(event.clientY - rect.top);
     });
 
-    let tipHidden = false;
     let fadeTimeout = null;
 
     function fadeOutVideoTipAfterDelay(delayMs = 1000) {
-        if (!videoTip || tipHidden) return;
-
-        tipHidden = true;
-
-        // Cancel previous timeout if any
         if (fadeTimeout) {
             clearTimeout(fadeTimeout);
             fadeTimeout = null;
         }
-
-        // Ensure it's visible before hiding
-        videoTip.classList.add("show");
-        videoTip.classList.remove("hidden");
-
         fadeTimeout = setTimeout(() => {
-            // Only this client’s timeout can affect the DOM
             videoTip.classList.remove("show");
             videoTip.classList.add("hidden");
-            fadeTimeout = null;
         }, delayMs);
     }
 
+    let toastTimeout = null;
+
+    function showToast(message) {
+        const toast = document.getElementById("mode-toast");
+        toast.textContent = message;
+        toast.classList.add("show");
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+            toastTimeout = null;
+        }
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove("show");
+            toastTimeout = null;
+        }, 1500);
+    }
+
+
+    let lastClickTime = 0;
 
     document.getElementById("video-feed").addEventListener("click", function (event) {
-
         fadeOutVideoTipAfterDelay(1000);
+    
+        const now = Date.now();
+        const doubleClickThreshold = 1500; // ms
+    
+        const rect = this.getBoundingClientRect();
+        const renderedWidth = rect.width;
+        const renderedHeight = rect.height;
+        const nativeWidth = 1920;
+        const nativeHeight = 1080;
+        const scaleX = nativeWidth / renderedWidth;
+        const scaleY = nativeHeight / renderedHeight;
+        const x = Math.round((event.clientX - rect.left) * scaleX);
+        const y = Math.round((event.clientY - rect.top) * scaleY);
+    
+        if (document.getElementById("homing-status").textContent === "Error" &&
+            !document.getElementById("mode-toast").classList.contains("show")) {
+            showToast("Homing failed. Please check the robot.");
+            return;
+        }
+    
+        if (currentMode === "tracking") {
+            if (now - lastClickTime < doubleClickThreshold) {
+                // Second click: switch to idle and emit click
+                socket.emit("set_motor_mode", { mode: "idle" });
+                socket.emit("click_target", { x, y });
+            } else {
+                // First click: just show toast
+                showToast("Click again to switch to manual mode.");
+                lastClickTime = now;
+            }
+            return; // prevent default action in tracking mode unless double-click
+        }
+    
         if (!isHomingComplete) {
             socket.emit("set_motor_mode", { mode: "idle" });
         }
-
-        const rect = this.getBoundingClientRect();
-
-        const renderedWidth = rect.width;
-        const renderedHeight = rect.height;
-
-        const nativeWidth = 1920;
-        const nativeHeight = 1080;
-
-        const scaleX = nativeWidth / renderedWidth;
-        const scaleY = nativeHeight / renderedHeight;
-
-        const x = Math.round((event.clientX - rect.left) * scaleX);
-        const y = Math.round((event.clientY - rect.top) * scaleY);
-
+    
         if (currentMode === "follow") {
             socket.emit("set_motor_mode", { mode: "idle" });
-            document.getElementById("follow-mode-btn").innerHTML =
-                '<i class="fas fa-mouse-pointer"></i> Start Cursor Follow';
-            updateModeIndicator("Idle", "fa-circle", true);
-
-            const toast = document.getElementById("mode-toast");
-            toast.classList.add("show");
-            showToast("Cursor follow disabled. You can now click to aim.");
-            setTimeout(() => toast.classList.remove("show"), 1500);
         }
-
-        // Show a toast message if the homing is failed and there already is not a toast message
-        if (document.getElementById("homing-status").textContent === "Error" && !document.getElementById("mode-toast").classList.contains("show")) {
-            const toast = document.getElementById("mode-toast");
-            toast.classList.add("show");
-            showToast("Homing failed");
-            setTimeout(() => toast.classList.remove("show"), 1500);
-            return;
-        }
-
+    
         socket.emit("click_target", { x, y });
     });
+    
 
     socket.on("target_updated", data => {
         const newTarget = data.target;
@@ -479,10 +489,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             }
         });
-
-        if (currentMode === "tracking") {
-            updateModeIndicator(`Tracking ${newTarget}`, "fa-bullseye");
-        }
     });
 
     document.querySelectorAll(".target-btn").forEach(btn => {
@@ -499,57 +505,6 @@ document.addEventListener("DOMContentLoaded", function () {
     socket.on("controller_update", data => {
         const activeSid = data.sid;
         const isController = (activeSid === mySocketId);
-
-        // And if the toast is not already shown
-        if (!isController && hasControl && !document.getElementById("mode-toast").classList.contains("show")) {
-            hasControl = false;
-            showToast("Another client took control.");
-
-            if (videoTip) {
-                tipHidden = false;
-                videoTip.classList.add("show");
-                videoTip.classList.remove("hidden");
-
-                if (fadeTimeout) {
-                    clearTimeout(fadeTimeout);
-                    fadeTimeout = null;
-                }
-            }
-        }
-
-
-        // If you lost control
-        if (!isController) {
-            if (currentMode === "follow") {
-                setMode("idle");
-                document.getElementById("follow-mode-btn").innerHTML =
-                    '<i class="fas fa-mouse-pointer"></i> Start Cursor Follow';
-                updateModeIndicator("Idle", "fa-circle", true);
-                showToast("Another client took control. Cursor follow stopped.");
-            }
-            // Show video tip
-            if (videoTip) {
-                tipHidden = false;
-                videoTip.classList.add("show");
-                videoTip.classList.remove("hidden");
-
-                if (fadeTimeout) {
-                    clearTimeout(fadeTimeout);
-                    fadeTimeout = null;
-                }
-            }
-            document.getElementById("motor1-slider").disabled = true;
-            document.getElementById("motor2-slider").disabled = true;
-
-            // document.getElementById("follow-mode-btn").disabled = true;
-            // document.getElementById("start-btn").disabled = true;  
-        } else {
-            hasControl = true;
-            document.getElementById("motor1-slider").disabled = false;
-            document.getElementById("motor2-slider").disabled = false;
-            document.getElementById("follow-mode-btn").disabled = false;
-            document.getElementById("start-btn").disabled = !isHomingComplete; // Still respect homing
-        }
     });
 
     socket.on("viewer_count", data => {

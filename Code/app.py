@@ -176,7 +176,6 @@ def on_disconnect():
 
     if app_state.viewer_count == 0:
         app_state.target_lock.clear()
-        app_state.latest_target_coords = (None, None)
         # If the mode is not tracking and no viewers are connected set the detector to None
         if app_state.current_mode != MotorMode.TRACKING:
             set_detector(None)
@@ -193,7 +192,6 @@ def on_disconnect():
             threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'On'})
         
-
 
 @socketio.on('click_target')
 def handle_click_target(data):
@@ -269,6 +267,51 @@ def handle_change_model(data):
         emit('model_changed', {'status': 'error', 'message': str(e)})
 
 
+@socketio.on('set_motor_mode')
+def handle_motor_control(data):
+    global motor_active
+
+    target_class = data.get('target')
+    mode = data.get('mode')
+    
+    app_state.current_mode = MotorMode(mode) if mode else app_state.current_mode
+    app_state.active_controller_sid = request.sid
+
+    
+    if not app_state.homing_complete:
+        emit('motor_status', {
+            'mode': app_state.current_mode.value,
+            'sid': app_state.active_controller_sid
+        })
+
+    elif mode == MotorMode.TRACKING.value:
+        motor_active = True
+        if target_class:
+            app_state.tracking_target = target_class
+        socketio.emit('motor_status', {
+            'mode': app_state.current_mode.value,
+            'target': app_state.tracking_target,
+            'sid': app_state.active_controller_sid
+        })
+
+    elif mode == MotorMode.IDLE.value:
+        motor_active = False
+        # Set the latest target to None
+        app_state.latest_target_coords = (None, None)
+        socketio.emit('motor_status', {
+            'mode': app_state.current_mode.value,
+            'sid': app_state.active_controller_sid
+        })
+        
+    elif mode == MotorMode.FOLLOW.value:
+        app_state.latest_target_coords = (None, None)
+        motor_active = True
+        socketio.emit('motor_status', {
+            'mode': app_state.current_mode.value,
+            'sid': app_state.active_controller_sid
+        })
+       
+        
 @socketio.on('toggle_laser')
 def handle_laser():
     if laser_pin.value:
@@ -291,44 +334,6 @@ def handle_shoot():
     emit('shoot_ack', {'status': 'fired'})
 
 
-@socketio.on('set_motor_mode')
-def handle_motor_control(data):
-    global motor_active
-
-    target_class = data.get('target')
-    mode = data.get('mode')
-    
-    app_state.current_mode = MotorMode(mode) if mode else app_state.current_mode
-    app_state.active_controller_sid = request.sid
-
-    
-    if not app_state.homing_complete:
-        emit('motor_status', {
-            'mode': app_state.current_mode.value,
-        })
-
-    elif mode == MotorMode.TRACKING.value:
-        motor_active = True
-        if target_class:
-            app_state.tracking_target = target_class
-        socketio.emit('motor_status', {
-            'mode': app_state.current_mode.value,
-            'target': app_state.tracking_target
-        })
-
-    elif mode == MotorMode.IDLE.value:
-        motor_active = False
-        socketio.emit('motor_status', {
-            'mode': app_state.current_mode.value,
-        })
-        
-    elif mode == MotorMode.FOLLOW.value:
-        motor_active = True
-        socketio.emit('motor_status', {
-            'mode': app_state.current_mode.value,
-        })
-
-
 @socketio.on('update_target')
 def handle_update_target(data):
     target = data.get("target")
@@ -337,10 +342,12 @@ def handle_update_target(data):
         print(f"[SocketIO] Target updated to: {target}")
         socketio.emit("target_updated", { "target": target })
 
+
 def point_in_polygon(polygon, x, y):
     """Returns True if point (x, y) is inside polygon."""
     poly_np = np.array(polygon, np.int32)
     return cv2.pointPolygonTest(poly_np, (x, y), False) >= 0
+
 
 def predict_angles(x, y):
     # 1. Find which surface the pixel belongs to
@@ -360,6 +367,7 @@ def predict_angles(x, y):
     # 3. Otherwise, fallback
     raise ValueError("Pixel not inside any surface and no close polygon found.")
 
+
 def find_closest_surface(x, y):
     min_dist = float('inf')
     closest_idx = None
@@ -371,6 +379,7 @@ def find_closest_surface(x, y):
             min_dist = dist
             closest_idx = idx
     return closest_idx
+
 
 def perform_interpolated_movement(current_coords, last_steps):
     x, y = current_coords
@@ -388,6 +397,7 @@ def perform_interpolated_movement(current_coords, last_steps):
     Motor2.move_to(interp2)
 
     return (interp1, interp2)
+
 
 def run_motor_loop():
     try:
@@ -413,6 +423,7 @@ def run_motor_loop():
             time.sleep(0.001)
     except Exception as e:
         logger.exception("Error in motor_loop")
+
 
 def status_broadcast_loop():
     try:
