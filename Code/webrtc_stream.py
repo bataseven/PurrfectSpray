@@ -14,6 +14,8 @@ import os
 
 pcs = set()
 latest_zmq_frame = None
+frame_queue = asyncio.Queue(maxsize=1)
+frame_lock = asyncio.Lock()
 
 FRAME_PUB_PORT = int(os.getenv("FRAME_PUB_PORT", 5555))
 
@@ -31,31 +33,35 @@ class LiveCameraTrack(VideoStreamTrack):
         super().__init__()
 
     async def recv(self):
-        global latest_zmq_frame
-        await asyncio.sleep(1 / 30)  # simulate ~30fps
+        await asyncio.sleep(1/30)
+        try:
+            frame = frame_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            arr = np.zeros((480,640,3), dtype=np.uint8)
+            frame = arr
+        else:
+            # we got a real frame; optionally re‐queue it if you want to reuse
+            pass
 
-        if latest_zmq_frame is None:
-            return VideoFrame.from_ndarray(np.zeros((480, 640, 3), dtype=np.uint8), format="bgr24")
-
-        frame = latest_zmq_frame.copy()
         video_frame = VideoFrame.from_ndarray(frame, format="bgr24")
         video_frame.pts, video_frame.time_base = await self.next_timestamp()
-        # print("[RTC] Sending live ZMQ frame")
         return video_frame
 
-
 async def zmq_receiver():
-    global latest_zmq_frame
-    # print("[ZMQ] Receiver started")
-    while True:
-        try:
+    try:
+        while True:
             data = await sub.recv()
-            jpg_data = base64.b64decode(data)
-            nparr = np.frombuffer(jpg_data, np.uint8)
-            latest_zmq_frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        except Exception as e:
-            print("[ZMQ] Error receiving frame:", e)
-        await asyncio.sleep(0)
+            img = cv2.imdecode(
+                np.frombuffer(base64.b64decode(data), np.uint8),
+                cv2.IMREAD_COLOR
+            )
+            # drop stale frame if queue already full
+            if frame_queue.full():
+                _ = frame_queue.get_nowait()
+            await frame_queue.put(img)
+    except asyncio.CancelledError:
+        print("zmq_receiver task cancelled")
+
 
 
 async def offer(request):
@@ -94,7 +100,10 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     app['zmq_task'].cancel()
-    await app['zmq_task']
+    try:
+        await app['zmq_task']
+    except asyncio.CancelledError:
+        pass
 
 app.on_startup.append(on_startup)
 app.on_cleanup.append(on_cleanup)

@@ -13,8 +13,6 @@ class MotorMode(Enum):
 
 class AppState:
     def __init__(self):
-        self.socketio: Optional[SocketIO] = None
-
         self.tracking_target = "person"
 
         # Target for motor movement

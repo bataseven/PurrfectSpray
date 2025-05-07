@@ -39,7 +39,6 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
-app_state.socketio = socketio
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 models_path = os.path.join(script_dir, "models")
@@ -150,7 +149,7 @@ def on_connect():
             threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'On'})
     app_state.viewer_count += 1
-    app_state.socketio.emit("viewer_count", {"count": app_state.viewer_count})
+    socketio.emit("viewer_count", {"count": app_state.viewer_count})
     print("[SOCKET] Client connected")
 
     emit('motor_status', {
@@ -167,7 +166,7 @@ def on_connect():
 def on_disconnect():
     if app_state.viewer_count > 0:
         app_state.viewer_count -= 1
-        app_state.socketio.emit(
+        socketio.emit(
             "viewer_count", {"count": app_state.viewer_count})
     if request.sid == app_state.active_controller_sid:
         print("[INFO] Releasing controller lock on disconnect")

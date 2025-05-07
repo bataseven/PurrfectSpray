@@ -138,7 +138,13 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num):
 
     trigger_start = motor.current_position()
 
+    traveled_steps = 0
+    
     while read_sensor():
+        traveled_steps = abs(motor.current_position() - trigger_start)
+        if traveled_steps >= max_steps:
+            print(f"[ERROR] Motor {motor_num} homing failed: Hall sensor not found within {max_steps * degrees_per_step} degrees.")
+            raise RuntimeError(f"Motor {motor_num} homing failed")
         motor.run_speed()
         time.sleep(0.001)
 

@@ -59,7 +59,7 @@ latest_frame = None
 def capture_and_process():
     global latest_frame, latest_detections
 
-    while True:
+    while not app_state.shutdown_event.is_set():
         try:
             frame = picam2.capture_array()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
@@ -119,7 +119,7 @@ def detect_in_background():
     while latest_frame is None:
         time.sleep(0.05)
 
-    while True:
+    while not app_state.shutdown_event.is_set():
         try:
             with detector_lock:
                 if detector is None:
@@ -168,7 +168,7 @@ socket.bind(f"tcp://*:{FRAME_PUB_PORT}")  # Bind to localhost port 5555
 
 def stream_frames_over_zmq():
     global latest_frame
-    while True:
+    while not app_state.shutdown_event.is_set():
         with frame_lock:
             if latest_frame is not None:
                 _, buffer = cv2.imencode(".jpg", latest_frame)

@@ -104,13 +104,26 @@ def handle_command(rep_socket: zmq.Socket):
 def main():
     register_shutdown()
     rep_socket, pub_socket = create_zmq_sockets()
+
+    # start motor and status threads
     threading.Thread(target=run_motor_loop, daemon=True).start()
     threading.Thread(target=publish_status_loop, args=(pub_socket,), daemon=True).start()
+
+    # set up a poller to allow polling with timeout
+    poller = zmq.Poller()
+    poller.register(rep_socket, zmq.POLLIN)
+
     print("[Gimbal Server] Listening on port 5555 for commands...")
     try:
-        while True:
-            handle_command(rep_socket)
+        # loop until shutdown_event is set
+        while not app_state.shutdown_event.is_set():
+            socks = dict(poller.poll(timeout=10))  # wait up to 10 ms
+            if socks.get(rep_socket) == zmq.POLLIN:
+                handle_command(rep_socket)
     except KeyboardInterrupt:
+        # fallback in case of manual interrupt
+        pass
+    finally:
         graceful_exit(None, None)
 
 if __name__ == "__main__":
