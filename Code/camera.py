@@ -47,7 +47,7 @@ except Exception as e:
     logger.exception("Failed to initialize camera")
     raise RuntimeError("Camera initialization failed") from e
 
-detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=320)
+detector = None
 
 openvino_model_path = os.path.join(script_dir,"yolov5nu_openvino_model")
 
@@ -97,7 +97,10 @@ def capture_and_process():
 def set_detector(model_name):
     global detector
     with detector_lock:
-        if model_name == 'mobilenet':
+        if model_name is None:
+            detector = None
+            print("[Detector] Object detection disabled")
+        elif model_name == 'mobilenet':
             detector = MobileNetDetector()
             print("Using MobileNet detector")
         elif model_name == 'yolov5n':
@@ -118,11 +121,17 @@ def detect_in_background():
 
     while True:
         try:
+            with detector_lock:
+                if detector is None:
+                    time.sleep(0.1)
+                    continue
+            
             with frame_lock:
                 frame = latest_frame.copy()
 
             with detector_lock:
-                detections = detector.detect(frame)
+                if detector is not None:
+                    detections = detector.detect(frame)
 
             for det in detections:
                 x1, y1, x2, y2 = det.box

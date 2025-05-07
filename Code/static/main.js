@@ -182,7 +182,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-    document.getElementById("model-select").addEventListener("change", function () {
+    document.getElementById("model-select").addEventListener("change", function() {
         const selectedModel = this.value;
         socket.emit('change_model', { model: selectedModel });
     });

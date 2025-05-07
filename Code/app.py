@@ -22,6 +22,8 @@ import cv2
 import numpy as np
 from gimbal_client import listen_for_telemetry, update_gimbal_status_from_telemetry
 
+detector_name = "none"
+
 logger = logging.getLogger("App")
 logger.setLevel(logging.INFO)
 
@@ -141,6 +143,9 @@ def offer_proxy():
 @socketio.on('connect')
 def on_connect():
     if app_state.viewer_count == 0:
+        # Set the detector to the default model if None is set
+        if detector_name == "none" and app_state.current_mode != MotorMode.TRACKING:
+            set_detector("yolov5n")
         if not laser_pin.value:
             threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'On'})
@@ -172,6 +177,11 @@ def on_disconnect():
     if app_state.viewer_count == 0:
         app_state.target_lock.clear()
         app_state.latest_target_coords = (None, None)
+        # If the mode is not tracking and no viewers are connected set the detector to None
+        if app_state.current_mode != MotorMode.TRACKING:
+            set_detector(None)
+            app_state.tracking_target = None
+            socketio.emit('model_changed', {'status': 'disabled'})
         
         # Turn off the laser if no viewers are connected
         if laser_pin.value:
@@ -182,6 +192,7 @@ def on_disconnect():
         if not laser_pin.value:
             threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'On'})
+        
 
 
 @socketio.on('click_target')
@@ -244,6 +255,13 @@ def handle_set_motor_position(data):
 @socketio.on('change_model')
 def handle_change_model(data):
     model_name = data.get('model')
+    global detector_name
+    detector_name = model_name
+    if model_name == "none":
+        set_detector(None)
+        emit('model_changed', {'status': 'disabled'})
+        return
+
     try:
         set_detector(model_name)
         emit('model_changed', {'status': 'success', 'model': model_name})
