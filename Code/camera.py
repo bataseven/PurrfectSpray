@@ -8,7 +8,7 @@ from picamera2 import Picamera2
 import time
 import logging
 from logging.handlers import RotatingFileHandler
-from detectors import MobileNetDetector, YoloV5Detector, YoloV5VinoDetector, highlight_colors, ActiveObjectTracker
+from detectors import MobileNetDetector, YoloV5Detector, YoloV5VinoDetector, highlight_colors, ActiveObjectTracker, Detection
 import threading
 from app_state import app_state, MotorMode
 import zmq
@@ -55,11 +55,6 @@ xml = os.path.expanduser(
 frame_lock = Lock()
 frame_available = Event()
 latest_frame = None
-
-
-import cv2
-import numpy as np
-from detectors import Detection
 
 def tiled_detect(frame, detector, tile_size=(1280, 1280), overlap=200):
     """
@@ -265,7 +260,7 @@ def detect_in_background():
             loop_ms = (time.perf_counter() - loop_start) * 1e3
             fps = 1000.0 / loop_ms if loop_ms > 0 else float('inf')
 
-            logger.info(f"Inference: {infer_ms:.1f} ms, total loop: {loop_ms:.1f} ms, FPS: {fps:.1f}")
+            # logger.info(f"Inference: {infer_ms:.1f} ms, total loop: {loop_ms:.1f} ms, FPS: {fps:.1f}")
 
         except Exception:
             logger.exception("Exception in detect_in_background")

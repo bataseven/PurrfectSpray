@@ -144,7 +144,7 @@ def on_connect():
     if app_state.viewer_count == 0:
         # Set the detector to the default model if None is set
         if detector_name == "none" and app_state.current_mode != MotorMode.TRACKING:
-            set_detector("yolov5n")
+            set_detector("openvino")
         if not laser_pin.value:
             threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'On'})
