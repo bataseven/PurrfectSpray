@@ -17,8 +17,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     let webrtcConnected = false;
-    let streamMonitorInterval = null;
-
     let lastVideoTime = 0;
     let staleCounter = 0;
     const modeIndicator = document.getElementById("video-mode-indicator");
