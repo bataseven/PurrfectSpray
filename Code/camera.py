@@ -8,7 +8,7 @@ from picamera2 import Picamera2
 import time
 import logging
 from logging.handlers import RotatingFileHandler
-from detectors import MobileNetDetector, YoloV5Detector, YoloV5OVDetector, highlight_colors
+from detectors import MobileNetDetector, YoloV5Detector, YoloV5VinoDetector, highlight_colors, ActiveObjectTracker
 import threading
 from app_state import app_state, MotorMode
 import zmq
@@ -49,11 +49,85 @@ except Exception as e:
 
 detector = None
 
-openvino_model_path = os.path.join(script_dir,"yolov5nu_openvino_model")
-
+xml = os.path.expanduser(
+    "~/Desktop/PurrfectSpray/Code/models/openvino_model/yolov5n.xml"
+)
 frame_lock = Lock()
 frame_available = Event()
 latest_frame = None
+
+
+import cv2
+import numpy as np
+from detectors import Detection
+
+def tiled_detect(frame, detector, tile_size=(1280, 1280), overlap=200):
+    """
+    Run detector.detect() on overlapping tiles of the input frame,
+    then re-offset all boxes back into full-frame coords,
+    and finally apply a global NMS to collapse duplicates.
+    
+    Returns: List[Detection]
+    """
+    h, w = frame.shape[:2]
+    tw, th = tile_size
+    step_x = tw - overlap
+    step_y = th - overlap
+
+    all_dets = []
+    for x in range(0, w, step_x):
+        for y in range(0, h, step_y):
+            x2 = min(x + tw, w)
+            y2 = min(y + th, h)
+            tile = frame[y:y2, x:x2]
+            if tile.size == 0:
+                continue
+
+            # 1) detect on the tile
+            dets = detector.detect(tile)
+
+            # 2) re-offset each box into full-frame coords
+            for d in dets:
+                bx1, by1, bx2, by2 = d.box
+                nx1 = bx1 + x
+                ny1 = by1 + y
+                nx2 = bx2 + x
+                ny2 = by2 + y
+                # clamp
+                nx1, ny1 = max(0, nx1), max(0, ny1)
+                nx2, ny2 = min(w, nx2), min(h, ny2)
+                all_dets.append(
+                    Detection(d.class_id, d.label, d.confidence, (nx1, ny1, nx2, ny2))
+                )
+
+    # if nothing found, bail out
+    if not all_dets:
+        return []
+
+    # 3) build arrays for global NMS
+    raw_boxes   = []
+    confidences = []
+    class_ids   = []
+    for d in all_dets:
+        x1, y1, x2, y2 = d.box
+        raw_boxes.append([x1, y1, x2 - x1, y2 - y1])  # x, y, w, h
+        confidences.append(d.confidence)
+        class_ids.append(d.class_id)
+
+    # 4) run a single NMS over everything
+    #    use the detector's own thresholds if available
+    conf_thresh = getattr(detector, "conf_threshold", 0.5)
+    nms_thresh  = getattr(detector, "nms_threshold", 0.45)
+    indices = cv2.dnn.NMSBoxes(raw_boxes, confidences, conf_thresh, nms_thresh)
+
+    final = []
+    if len(indices):
+        for i in indices.flatten():
+            d = all_dets[i]
+            final.append(d)
+
+    return final
+
 
 
 def capture_and_process():
@@ -104,59 +178,99 @@ def set_detector(model_name):
             detector = MobileNetDetector()
             print("Using MobileNet detector")
         elif model_name == 'yolov5n':
-            detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=320)
+            detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=1280)
             print("Using YOLOv5n detector")
         elif model_name == 'openvino':
-            detector = YoloV5OVDetector(openvino_model_path)
+            detector = YoloV5VinoDetector(xml_path=xml, conf_threshold=0.3)
             print("Using OpenVINO YOLOv5 detector")
         else:
             raise ValueError(f"Unknown model: {model_name}")
         
         
+# one tracker per background thread
+# CSRT is a good choice for fast-moving objects
+# KCF is faster but less accurate
+# MIL is the fastest but least accurate
+tracker = ActiveObjectTracker(tracker_type="CSRT", max_track_frames=8, max_misses=4)
+
 def detect_in_background():
     global latest_frame, latest_detections
 
-    while latest_frame is None:
+    # wait until the very first frame arrives
+    while latest_frame is None and not app_state.shutdown_event.is_set():
         time.sleep(0.05)
 
     while not app_state.shutdown_event.is_set():
+        loop_start = time.perf_counter()
+
         try:
-            with detector_lock:
-                if detector is None:
-                    time.sleep(0.1)
-                    continue
-            
+            # pull a fresh copy of the frame
             with frame_lock:
                 frame = latest_frame.copy()
 
+            # --- 1) measure inference time only ---
             with detector_lock:
-                if detector is not None:
-                    detections = detector.detect(frame)
+                if detector:
+                    detect_start = time.perf_counter()
+                    dets = tiled_detect(
+                    frame,
+                    detector,
+                    tile_size=(1280, 1280),
+                    overlap=200
+                ) if detector else []
+                    infer_ms = (time.perf_counter() - detect_start) * 1e3
+                else:
+                    dets = []
+                    infer_ms = 0.0
 
-            for det in detections:
-                x1, y1, x2, y2 = det.box
-                # Ensure integer pixel values
-                det.box = (int(x1), int(y1), int(x2), int(y2))
-                # print(
-                #     f"Detection: {det.label} ({det.confidence:.2f}) at ({x1}, {y1}, {x2}, {y2})")
+            # normalize boxes to ints
+            for d in dets:
+                x1, y1, x2, y2 = d.box
+                d.box = (int(x1), int(y1), int(x2), int(y2))
 
+            # save raw detections if you still need them
             with detection_lock:
-                latest_detections = detections
+                latest_detections = dets
 
-            for det in detections:
-                if app_state.current_mode==MotorMode.TRACKING and det.label.lower() == app_state.tracking_target.lower():
-                    x = int((det.box[0] + det.box[2]) / 2)
-                    y = int((det.box[1] + det.box[3]) / 2)
-                    app_state.latest_target_coords = (None, None)
-                    # app_state.latest_target_coords = (x, y)
-                    print(f"Detected target at ({x}, {y})")
+            # If you do tiling, sum up each tile’s time:
+            # total_tile_ms = 0
+            # for tile in tiles:
+            #     t0 = time.perf_counter()
+            #     partial_dets = detector.detect(tile)
+            #     total_tile_ms += (time.perf_counter() - t0) * 1e3
+            # infer_ms = total_tile_ms
+
+            # decide which class we’re actively tracking
+            target = app_state.tracking_target.lower() if app_state.tracking_target else None
+            if not target:
+                tracker.clear()
+                app_state.target_lock.clear()
+            else:
+                output = tracker.update(
+                    frame,
+                    [ {'bbox':d.box, 'class':d.label.lower(), 'conf':d.confidence}
+                      for d in dets ],
+                    target_class=target,
+                    conf_thresh=0.3
+                )
+                if tracker.last_box:
+                    x,y,w,h = tracker.last_box
+                    cx, cy = x + w//2, y + h//2
+                    app_state.latest_target_coords = (cx, cy)
                     app_state.target_lock.set()
-                    break
+                else:
+                    app_state.target_lock.clear()
 
-        except Exception as e:
+            # --- 2) measure total loop time ---
+            loop_ms = (time.perf_counter() - loop_start) * 1e3
+            fps = 1000.0 / loop_ms if loop_ms > 0 else float('inf')
+
+            logger.info(f"Inference: {infer_ms:.1f} ms, total loop: {loop_ms:.1f} ms, FPS: {fps:.1f}")
+
+        except Exception:
             logger.exception("Exception in detect_in_background")
-            time.sleep(2)
-
+            time.sleep(1)
+            
 
 FRAME_PUB_PORT = int(os.getenv("FRAME_PUB_PORT", 5555))
 

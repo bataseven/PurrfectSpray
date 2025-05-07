@@ -46,11 +46,110 @@ class Detection:
         self.confidence = confidence
         self.box = box  # (startX, startY, endX, endY)
 
-
 class BaseDetector:
     def detect(self, frame):
         raise NotImplementedError("Detector must implement detect()")
 
+def _get_tracker_builder(name: str):
+    """
+    Return a callable that creates a Tracker<name> instance.
+    Looks in:
+      1. cv2.legacy.Tracker<name>_create
+      2. cv2.Tracker<name>_create
+    Raises ImportError if neither exists.
+    """
+    legacy_ns = getattr(cv2, "legacy", None)
+    legacy_factory = getattr(legacy_ns, f"Tracker{name}_create", None) if legacy_ns else None
+    top_factory    = getattr(cv2, f"Tracker{name}_create", None)
+
+    if callable(legacy_factory):
+        return legacy_factory
+    if callable(top_factory):
+        return top_factory
+
+    raise ImportError(
+        f"Tracker{name}_create not found in cv2; "
+        f"ensure opencv-contrib-python is installed."
+    )
+
+class ActiveObjectTracker:
+    def __init__(self, tracker_type="CSRT", max_track_frames=10, max_misses=5):
+        """
+        tracker_type: "CSRT", "KCF", or "MOSSE"
+        """
+        self._make_tracker   = _get_tracker_builder(tracker_type)
+        self.max_track_frames = max_track_frames
+        self.max_misses       = max_misses
+
+        self.tracker       = None
+        self.track_frames  = 0
+        self.miss_count    = 0
+        self.last_box      = None  # (x, y, w, h)
+        self.last_label    = None
+        
+    def clear(self):
+        """Clear the tracker state."""
+        self.tracker       = None
+        self.track_frames  = 0
+        self.miss_count    = 0
+        self.last_box      = None
+        self.last_label    = None
+
+    def update(self, frame, detections, target_class, conf_thresh=0.3):
+        """
+        frame:      BGR image (numpy array)
+        detections: list of dicts { 'bbox':[x1,y1,x2,y2], 'class':str, 'conf':float }
+        target_class: string name of the class to track
+        conf_thresh: float confidence cutoff for detector
+        Returns the frame with a rectangle drawn if tracking, else the raw frame.
+        """
+        # 1) filter detector hits of the class
+        hits = [d for d in detections
+                if d['class'] == target_class and d['conf'] >= conf_thresh]
+
+        if hits:
+            # pick highest-confidence detection
+            best = max(hits, key=lambda d: d['conf'])
+            x1, y1, x2, y2 = best['bbox']
+            w, h = x2 - x1, y2 - y1
+
+            # init or re-init tracker
+            self.tracker = self._make_tracker()
+            self.tracker.init(frame, (x1, y1, w, h))
+
+            # reset counters
+            self.track_frames = 0
+            self.miss_count   = 0
+            self.last_box     = (x1, y1, w, h)
+            self.last_label   = target_class
+
+        elif self.tracker is not None and self.track_frames < self.max_track_frames:
+            # 2) fallback to tracker
+            ok, box = self.tracker.update(frame)
+            if ok:
+                self.last_box     = tuple(map(int, box))
+                self.track_frames += 1
+            else:
+                # tracker lost it
+                self.tracker = None
+
+        elif self.last_box is not None and self.miss_count < self.max_misses:
+            # 3) hold the last box
+            self.miss_count += 1
+
+        else:
+            # 4) give up
+            self.tracker  = None
+            self.last_box = None
+
+        # draw if we have a box
+        if self.last_box:
+            x, y, w, h = self.last_box
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(frame, self.last_label, (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+        return frame
 
 # ----------------------------
 # MobileNet SSD (OpenCV DNN)
@@ -75,17 +174,14 @@ class MobileNetDetector(BaseDetector):
 
         results = []
         for i in range(detections.shape[2]):
-            confidence = detections[0, 0, i, 2]
+            confidence = float(detections[0, 0, i, 2])
             if confidence > 0.5:
                 class_id = int(detections[0, 0, i, 1])
-                label = self.classes[class_id] if 0 < class_id < len(
-                    self.classes) else "unknown"
-                box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-                startX, startY, endX, endY = box.astype("int")
-                results.append(Detection(class_id, label,
-                               confidence, (startX, startY, endX, endY)))
+                label = self.classes[class_id] if 0 < class_id < len(self.classes) else "unknown"
+                box = (detections[0, 0, i, 3:7] * np.array([w, h, w, h])).astype("int")
+                startX, startY, endX, endY = box
+                results.append(Detection(class_id, label, confidence, (startX, startY, endX, endY)))
         return results
-
 
 # ----------------------------
 # YOLOv5 via PyTorch (torch.hub)
@@ -93,9 +189,8 @@ class MobileNetDetector(BaseDetector):
 class YoloV5Detector(BaseDetector):
     def __init__(self, model_name='yolov5n', conf_threshold=0.5, size=640):
         self.size = size
-        self.model = torch.hub.load(
-            'ultralytics/yolov5', model_name, trust_repo=True)
-        self.model.conf = conf_threshold  # confidence threshold
+        self.model = torch.hub.load('ultralytics/yolov5', model_name, trust_repo=True)
+        self.model.conf = conf_threshold
         self.model.eval()
 
     def detect(self, frame):
@@ -108,68 +203,108 @@ class YoloV5Detector(BaseDetector):
                 continue
             x1, y1, x2, y2 = map(int, box)
             label = labels[int(class_id)]
-            output.append(Detection(int(class_id), label,
-                          float(conf), (x1, y1, x2, y2)))
+            output.append(Detection(int(class_id), label, float(conf), (x1, y1, x2, y2)))
         return output
 
-
 # ----------------------------
-# YOLOv5 OpenVINO (IR format)
+# YOLOv5 via OpenVINO (IR format) — new class with NMS
 # ----------------------------
-class YoloV5OVDetector(BaseDetector):
-    def __init__(self, model_dir='yolov5nu_openvino_model', conf_threshold=0.5):
+class YoloV5VinoDetector(BaseDetector):
+    def __init__(self,
+                 xml_path: str,
+                 conf_threshold: float = 0.5,
+                 nms_threshold: float = 0.45):
+        """
+        xml_path:       Path to your yolov5n.xml (IR model)
+        conf_threshold: confidence cutoff (0–1)
+        nms_threshold:  IoU threshold for NMS (0–1)
+        """
         self.conf_threshold = conf_threshold
+        self.nms_threshold  = nms_threshold
+
+        # 1) Compile the IR model for CPU
         self.core = Core()
-        self.model = self.core.compile_model(
-            f"{model_dir}/yolov5nu.xml", "CPU")
-        self.input_layer = self.model.input(0)
-        self.output_layer = self.model.output(0)
-        self.input_size = self.input_layer.shape[2:]  # [height, width]
+        self.model = self.core.compile_model(xml_path, device_name="CPU")
+
+        # 2) Ports & shapes
+        self.input_port  = self.model.input(0)
+        self.output_port = self.model.output(0)
+        self.input_size  = tuple(self.input_port.shape[2:][::-1])  # (W, H)
+
+        # 3) COCO class names
         self.class_names = [
-            "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
-            "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
-            "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
-            "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
-            "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
-            "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-            "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
-            "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
-            "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
-            "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+            "person","bicycle","car","motorcycle","airplane","bus","train","truck","boat",
+            "traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat",
+            "dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack",
+            "umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball",
+            "kite","baseball bat","baseball glove","skateboard","surfboard","tennis racket",
+            "bottle","wine glass","cup","fork","knife","spoon","bowl","banana","apple",
+            "sandwich","orange","broccoli","carrot","hot dog","pizza","donut","cake","chair",
+            "couch","potted plant","bed","dining table","toilet","tv","laptop","mouse",
+            "remote","keyboard","cell phone","microwave","oven","toaster","sink",
+            "refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"
         ]
 
-    def detect(self, frame):
-        detections = []
-        try:
-            h, w = frame.shape[:2]
-            resized = cv2.resize(frame, tuple(self.input_size))
-            blob = resized.transpose(2, 0, 1)[np.newaxis, :] / 255.0
+    def detect(self, frame: np.ndarray):
+        orig_h, orig_w = frame.shape[:2]
+        inp_w, inp_h   = self.input_size
 
-            outputs = self.model([blob])[self.output_layer]
-            outputs = np.squeeze(outputs)
+        # resize & normalize into blob
+        resized = cv2.resize(frame, (inp_w, inp_h))
+        blob    = resized.astype(np.float32) / 255.0
+        blob    = blob.transpose(2, 0, 1)[None, ...]
 
-            for det in outputs:
-                conf = det[4]
-                if conf < self.conf_threshold:
-                    continue
-                cls_id = int(np.argmax(det[5:]))
-                label = self.class_names[cls_id] if cls_id < len(
-                    self.class_names) else f"class_{cls_id}"
+        # inference
+        outputs = self.model([blob])[self.output_port]
+        preds   = np.squeeze(outputs)  # shape: (num_preds, 85)
 
-                x_center, y_center, width, height = det[:4]
-                x_center *= w
-                y_center *= h
-                width *= w
-                height *= h
-                x1 = int(x_center - width / 2)
-                y1 = int(y_center - height / 2)
-                x2 = int(x_center + width / 2)
-                y2 = int(y_center + height / 2)
+        # prepare for NMS
+        raw_boxes    = []
+        confidences  = []
+        class_ids    = []
 
-                detections.append(
-                    Detection(cls_id, label, float(conf), (x1, y1, x2, y2)))
-        except Exception as e:
-            import logging
-            logging.getLogger("App").exception("Error in OpenVINO detect()")
+        scale_x = orig_w / inp_w
+        scale_y = orig_h / inp_h
 
-        return detections
+        for det in preds:
+            conf = float(det[4])
+            if conf < self.conf_threshold:
+                continue
+
+            # pick class
+            scores = det[5:]
+            cls_id = int(np.argmax(scores))
+
+            # decode box
+            xc, yc, bw, bh = det[:4]
+            x1 = int((xc - bw/2) * scale_x)
+            y1 = int((yc - bh/2) * scale_y)
+            w  = int(bw * scale_x)
+            h  = int(bh * scale_y)
+
+            # clamp
+            x1 = max(0, min(orig_w, x1))
+            y1 = max(0, min(orig_h, y1))
+            w  = max(1, min(orig_w - x1, w))
+            h  = max(1, min(orig_h - y1, h))
+
+            raw_boxes.append([x1, y1, w, h])
+            confidences.append(conf)
+            class_ids.append(cls_id)
+
+        # apply NMS
+        indices = cv2.dnn.NMSBoxes(raw_boxes, confidences,
+                                   self.conf_threshold, self.nms_threshold)
+
+        results = []
+        if len(indices):
+            for i in indices.flatten():
+                x, y, w, h = raw_boxes[i]
+                cls_id      = class_ids[i]
+                label       = self.class_names[cls_id]
+                conf        = confidences[i]
+                results.append(
+                    Detection(cls_id, label, conf, (x, y, x + w, y + h))
+                )
+
+        return results
