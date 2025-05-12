@@ -93,13 +93,11 @@ else:
             super().__init__(interface, pin1, pin2, pin3, pin4, invert)
             self.degrees_per_step = degrees_per_step
 
-        def move_to(self, step_pos: int, override=False):
-            new_steps = step_pos
-            if not override:
-                raw_deg = step_pos * self.degrees_per_step
-                current_deg = self.current_position() * self.degrees_per_step
-                target_deg = closest_equivalent_angle(raw_deg, current_deg)
-                new_steps = int(round(target_deg / self.degrees_per_step))
+        def move_to(self, step_pos: int):
+            raw_deg = step_pos * self.degrees_per_step
+            current_deg = self.current_position() * self.degrees_per_step
+            target_deg = closest_equivalent_angle(raw_deg, current_deg)
+            new_steps = int(round(target_deg / self.degrees_per_step))
             super().move_to(new_steps)
             
 
@@ -145,13 +143,16 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
     start_pos = motor.current_position()
 
     def sensor_active():
-        time.sleep(0.01)
+        time.sleep(0.004)
         return not hall_sensor.value
 
+    trigger_start = None
+    
     # ---- Probe forward (+) ----
     motor.set_speed(homing_speed)
     while not sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
         motor.run_speed()
+        trigger_start = motor.current_position()
     fwd_steps = abs(motor.current_position() - start_pos)
     fwd_found = sensor_active()
 
@@ -159,9 +160,25 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
     skip_threshold = max_steps * 0.5  # 20% of full arc
     if fwd_found and fwd_steps < skip_threshold:
         direction = 1
+        
+        # ---- Exit initial zone if active ----
+        if trigger_start is None:
+            print(f"Motor {motor_num} still in trigger zone; moving out to arc start...")
+            motor.set_speed(-homing_speed)
+            while sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
+                motor.run_speed()
+            print(f"Motor {motor_num} exited trigger zone at {motor.current_position()} steps.")
+
+        motor.set_speed(direction * homing_speed)
+        while not sensor_active(): motor.run_speed()
+        trigger_start = motor.current_position()
+        print(f"Motor {motor_num} found trigger at {trigger_start} steps.")
+        while sensor_active(): motor.run_speed()
+        trigger_end = motor.current_position()
+        print(f"Motor {motor_num} exited trigger at {trigger_end} steps.")        
     else:
         # return to start
-        motor.move_to(start_pos, override=True)
+        motor.move_to(start_pos)
         while motor.run(): pass
 
         # ---- Probe backward (-) ----
@@ -170,38 +187,17 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
             motor.run_speed()
         bwd_steps = abs(motor.current_position() - start_pos)
         bwd_found = sensor_active()
-
-        # decide direction
-        if fwd_found and (not bwd_found or fwd_steps <= bwd_steps):
-            direction = 1
-        elif bwd_found:
-            direction = -1
-        else:
-            raise RuntimeError(f"Motor {motor_num}: sensor not found within ±180°")
-
-    motor.move_to(start_pos, override=True)
-    while motor.run(): pass
+        trigger_start = motor.current_position()
+        while sensor_active(): motor.run_speed()
+        trigger_end = motor.current_position()
+        print(f"Motor {motor_num} exited trigger at {trigger_end} steps.")
     
-        # ---- Exit initial zone if active ----
-    if sensor_active():
-        print(f"Motor {motor_num} still in trigger zone; moving out to arc start...")
-        motor.set_speed(-homing_speed)
-        while sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
-            motor.run_speed()
-        print(f"Motor {motor_num} exited trigger zone at {motor.current_position()} steps.")
-    
-    # ---- Real homing ----
-    motor.set_speed(direction * homing_speed)
-    while not sensor_active(): motor.run_speed()
-    trigger_start = motor.current_position()
-    print(f"Motor {motor_num} found trigger at {trigger_start} steps.")
-    while sensor_active(): motor.run_speed()
-    trigger_end = motor.current_position()
-    print(f"Motor {motor_num} exited trigger at {trigger_end} steps.")
-
+    # Raise error if no sensor found
+    if not (fwd_found or bwd_found):
+        raise RuntimeError(f"Motor {motor_num} failed to find home sensor.")
+            
     midpoint = (trigger_start + trigger_end) // 2
-    motor.move_to(midpoint, override=True)
+    motor.move_to(midpoint)
     while motor.run(): pass
 
     motor.set_current_position(0)
-    print(f"Motor {motor_num} homed facing {'forward' if direction>0 else 'backward'}; zero set.")
