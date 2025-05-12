@@ -52,7 +52,6 @@ if USE_REMOTE_GIMBAL:
             self._position = 0  # virtual position in steps
 
         def move_to(self, step_pos: int):
-            # compute raw degrees and wrap to shortest path
             raw_deg = step_pos * self.degrees_per_step
             current_deg = self._position * self.degrees_per_step
             target_deg = closest_equivalent_angle(raw_deg, current_deg)
@@ -94,12 +93,15 @@ else:
             super().__init__(interface, pin1, pin2, pin3, pin4, invert)
             self.degrees_per_step = degrees_per_step
 
-        def move_to(self, step_pos: int):
-            raw_deg = step_pos * self.degrees_per_step
-            current_deg = self.current_position() * self.degrees_per_step
-            target_deg = closest_equivalent_angle(raw_deg, current_deg)
-            new_steps = int(round(target_deg / self.degrees_per_step))
+        def move_to(self, step_pos: int, override=False):
+            new_steps = step_pos
+            if not override:
+                raw_deg = step_pos * self.degrees_per_step
+                current_deg = self.current_position() * self.degrees_per_step
+                target_deg = closest_equivalent_angle(raw_deg, current_deg)
+                new_steps = int(round(target_deg / self.degrees_per_step))
             super().move_to(new_steps)
+            
 
     Motor1 = LocalMotor(DRIVER, 19, 13, None, None, True, DEGREES_PER_STEP_1)
     Motor2 = LocalMotor(DRIVER, 18, 24, None, None, True, DEGREES_PER_STEP_2)
@@ -130,41 +132,21 @@ else:
 
 def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
     """
-    Probe both directions up to ±180° and home toward the closer sensor.
-    If the sensor is already active at the start, first move out of the trigger zone
-    to find the true arc start before probing.
+    Probe forward up to ±180° and home toward the closer sensor.
+    If the sensor triggers within a small forward arc, skip backward probing.
     """
-    print(f"Homing Motor {motor_num} with arc detection.")
+    print(f"Homing Motor {motor_num} with smart arc detection.")
     homing_speed = 500
     motor.set_acceleration(1000)
 
     # select degrees_per_step
-    if motor_num == 1:
-        dps = DEGREES_PER_STEP_1
-    elif motor_num == 2:
-        dps = DEGREES_PER_STEP_2
-    else:
-        raise ValueError("Invalid motor number")
-
-    max_steps = int(180.0 / dps)
-    # initial reference
+    dps = DEGREES_PER_STEP_1 if motor_num == 1 else DEGREES_PER_STEP_2
+    max_steps = int(175.0 / dps)
     start_pos = motor.current_position()
 
     def sensor_active():
-        time.sleep(0.005)
+        time.sleep(0.01)
         return not hall_sensor.value
-
-    # If already in trigger zone, move away to find arc start
-    if sensor_active():
-        print(f"Motor {motor_num} sensor already active; moving away to find zone start...")
-        motor.set_speed(-homing_speed)
-        while sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
-            motor.run_speed()
-        if sensor_active():
-            raise RuntimeError(f"Motor {motor_num} homing failed: can't exit initial trigger zone.")
-        # new zone start
-        start_pos = motor.current_position()
-        print(f"Motor {motor_num} exited trigger zone at step {start_pos}.")
 
     # ---- Probe forward (+) ----
     motor.set_speed(homing_speed)
@@ -173,37 +155,52 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
     fwd_steps = abs(motor.current_position() - start_pos)
     fwd_found = sensor_active()
 
-    # return to zone start
-    motor.move_to(start_pos)
-    while motor.run(): pass
-
-    # ---- Probe backward (-) ----
-    motor.set_speed(-homing_speed)
-    while not sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
-        motor.run_speed()
-    bwd_steps = abs(motor.current_position() - start_pos)
-    bwd_found = sensor_active()
-
-    # decide direction
-    if fwd_found and (not bwd_found or fwd_steps <= bwd_steps):
+    # If forward found very quickly, trust forward and skip backward
+    skip_threshold = max_steps * 0.5  # 20% of full arc
+    if fwd_found and fwd_steps < skip_threshold:
         direction = 1
-    elif bwd_found:
-        direction = -1
     else:
-        raise RuntimeError(f"Motor {motor_num}: sensor not found within ±180°")
+        # return to start
+        motor.move_to(start_pos, override=True)
+        while motor.run(): pass
 
+        # ---- Probe backward (-) ----
+        motor.set_speed(-homing_speed)
+        while not sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
+            motor.run_speed()
+        bwd_steps = abs(motor.current_position() - start_pos)
+        bwd_found = sensor_active()
+
+        # decide direction
+        if fwd_found and (not bwd_found or fwd_steps <= bwd_steps):
+            direction = 1
+        elif bwd_found:
+            direction = -1
+        else:
+            raise RuntimeError(f"Motor {motor_num}: sensor not found within ±180°")
+
+    motor.move_to(start_pos, override=True)
+    while motor.run(): pass
+    
+        # ---- Exit initial zone if active ----
+    if sensor_active():
+        print(f"Motor {motor_num} still in trigger zone; moving out to arc start...")
+        motor.set_speed(-homing_speed)
+        while sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
+            motor.run_speed()
+        print(f"Motor {motor_num} exited trigger zone at {motor.current_position()} steps.")
+    
     # ---- Real homing ----
     motor.set_speed(direction * homing_speed)
-    # move into trigger start
     while not sensor_active(): motor.run_speed()
     trigger_start = motor.current_position()
-    # move until trigger end
+    print(f"Motor {motor_num} found trigger at {trigger_start} steps.")
     while sensor_active(): motor.run_speed()
     trigger_end = motor.current_position()
+    print(f"Motor {motor_num} exited trigger at {trigger_end} steps.")
 
-    # center on midpoint
     midpoint = (trigger_start + trigger_end) // 2
-    motor.move_to(midpoint)
+    motor.move_to(midpoint, override=True)
     while motor.run(): pass
 
     motor.set_current_position(0)
