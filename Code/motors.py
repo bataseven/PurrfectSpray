@@ -185,7 +185,6 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
         motor.set_speed(-homing_speed)
         while not sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
             motor.run_speed()
-        bwd_steps = abs(motor.current_position() - start_pos)
         bwd_found = sensor_active()
         trigger_start = motor.current_position()
         while sensor_active(): motor.run_speed()
