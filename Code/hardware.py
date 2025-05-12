@@ -48,7 +48,7 @@ else:
             
         def spray(self, duration=0.5):
             if self.name == "spray":
-                send_gimbal_command({"cmd": "spray", "duration": duration})
+                send_gimbal_command({"cmd": "spray", "duration": duration, "on": True})
 
         def close(self):
             self.off()
