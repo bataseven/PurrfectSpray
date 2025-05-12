@@ -80,8 +80,7 @@ def handle_command(rep_socket: zmq.Socket):
             rep_socket.send_json({"status": "ok"})
 
         elif cmd == "spray":
-            if message.get("on"):
-                water_gun_pin.spray(message.get("duration", 0.5))
+            water_gun_pin.spray(message.get("duration", 0.5))
             rep_socket.send_json({"status": "ok"})
 
         elif cmd == "status":
