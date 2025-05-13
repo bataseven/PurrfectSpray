@@ -14,6 +14,8 @@ from app_state import app_state, MotorMode
 import zmq
 import base64
 import cv2
+from multi_tracker import Sort
+
 
 logger = logging.getLogger("Camera")
 logger.setLevel(logging.INFO)
@@ -124,7 +126,6 @@ def tiled_detect(frame, detector, tile_size=(1280, 1280), overlap=200):
     return final
 
 
-
 def capture_and_process():
     global latest_frame, latest_detections
 
@@ -133,34 +134,56 @@ def capture_and_process():
             frame = picam2.capture_array()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
 
-            # draw latest detections (from other thread)
+            # grab snapshot of detections & tracked center
             with detection_lock:
-                detections_copy = list(latest_detections)
+                dets = list(latest_detections)
+            tc = app_state.latest_target_coords
+            tracked_center = (
+                tc if tc and tc[0] is not None and tc[1] is not None else None
+            )
 
-            selected_label = app_state.tracking_target.lower() if app_state.tracking_target else None
-            
-            for i, det in enumerate(detections_copy):
+            # draw all detections
+            for det in dets:
+                x1, y1, x2, y2 = det.box
                 color = highlight_colors[det.class_id % len(highlight_colors)]
-                if selected_label and det.label.lower() != selected_label:
-                    # Put a sample circle on the detection
-                    startX, startY, endX, endY = det.box
-                    target_x = int((startX + endX) / 2)
-                    target_y = int((startY + endY) / 2)
-                    cv2.circle(frame, (target_x, target_y), 5, color, -1)
-                    continue
-                startX, startY, endX, endY = det.box
-                cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
-                label = f"{det.label}: {det.confidence:.2f}"
-                cv2.putText(frame, label, (startX, startY - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(frame,
+                            f"{det.label}: {det.confidence:.2f}",
+                            (x1, y1 - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            color,
+                            2)
 
+            # now overlay TARGET on the one box whose center == tracked_center
+            if tracked_center:
+                tx, ty = tracked_center
+                # find whichever detection is closest to that center
+                for det in dets:
+                    x1, y1, x2, y2 = det.box
+                    cx = (x1 + x2) // 2
+                    cy = (y1 + y2) // 2
+                    if abs(cx - tx) < 5 and abs(cy - ty) < 5:
+                        # bump the text up above the box
+                        cv2.putText(frame,
+                                    "TARGET",
+                                    (x1, y1 - 25),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.7,
+                                    (0, 0, 255),
+                                    2)
+                        break
+
+            # publish
             with frame_lock:
                 latest_frame = frame.copy()
                 frame_available.set()
 
-        except Exception as e:
+        except Exception:
             logger.exception("Exception in capture_and_process loop")
             time.sleep(2)
+
+
            
             
 def set_detector(model_name):
@@ -182,16 +205,12 @@ def set_detector(model_name):
             raise ValueError(f"Unknown model: {model_name}")
         
         
-# one tracker per background thread
-# CSRT is a good choice for fast-moving objects
-# KCF is faster but less accurate
-# MIL is the fastest but least accurate
-tracker = ActiveObjectTracker(tracker_type="CSRT", max_track_frames=8, max_misses=4)
+multi_tracker = Sort(max_age=10, min_hits=1, iou_threshold=0.3)        
 
 def detect_in_background():
     global latest_frame, latest_detections
 
-    # wait until the very first frame arrives
+    # wait for first frame
     while latest_frame is None and not app_state.shutdown_event.is_set():
         time.sleep(0.05)
 
@@ -199,64 +218,84 @@ def detect_in_background():
         loop_start = time.perf_counter()
 
         try:
-            # pull a fresh copy of the frame
+            # 1) grab current frame copy
             with frame_lock:
                 frame = latest_frame.copy()
 
-            # --- 1) measure inference time only ---
+            # 2) run (tiled) detection
             with detector_lock:
                 if detector:
-                    detect_start = time.perf_counter()
-                    dets = tiled_detect(
-                    frame,
-                    detector,
-                    tile_size=(1280, 1280),
-                    overlap=200
-                ) if detector else []
-                    infer_ms = (time.perf_counter() - detect_start) * 1e3
+                    t0 = time.perf_counter()
+                    dets = tiled_detect(frame, detector, tile_size=(1280,1280), overlap=200)
+                    infer_ms = (time.perf_counter() - t0)*1e3
                 else:
-                    dets = []
-                    infer_ms = 0.0
+                    dets, infer_ms = [], 0.0
 
-            # normalize boxes to ints
+            # 3) normalize boxes
             for d in dets:
-                x1, y1, x2, y2 = d.box
-                d.box = (int(x1), int(y1), int(x2), int(y2))
+                x1,y1,x2,y2 = d.box
+                d.box = (int(x1),int(y1),int(x2),int(y2))
 
-            # save raw detections if you still need them
+            # 4) snapshot for UI/debug
             with detection_lock:
-                latest_detections = dets
+                latest_detections = list(dets)
 
-            # decide which class we’re actively tracking
-            target = app_state.tracking_target.lower() if app_state.tracking_target else None
-            if not target:
-                tracker.clear()
-                app_state.target_lock.clear()
+            # 5) build SORT input array
+            if dets:
+                dets_arr = np.array([[*d.box, d.confidence] for d in dets], dtype=np.float32)
             else:
-                output = tracker.update(
-                    frame,
-                    [ {'bbox':d.box, 'class':d.label.lower(), 'conf':d.confidence}
-                      for d in dets ],
-                    target_class=target,
-                    conf_thresh=0.3
-                )
-                if tracker.last_box:
-                    x,y,w,h = tracker.last_box
-                    cx, cy = x + w//2, y + h//2
-                    app_state.latest_target_coords = (cx, cy)
-                    app_state.target_lock.set()
-                else:
-                    app_state.target_lock.clear()
+                dets_arr = np.empty((0,5), dtype=np.float32)
 
-            # --- 2) measure total loop time ---
-            loop_ms = (time.perf_counter() - loop_start) * 1e3
-            fps = 1000.0 / loop_ms if loop_ms > 0 else float('inf')
+            # 6) run SORT to get tracks: [[x1,y1,x2,y2,track_id],…]
+            tracks = multi_tracker.update(dets_arr)
 
-            # logger.info(f"Inference: {infer_ms:.1f} ms, total loop: {loop_ms:.1f} ms, FPS: {fps:.1f}")
+            # 7) map tracks back to Detection objects *only* if we have any dets
+            tracked_objs = []
+            if dets and tracks.shape[0] > 0:
+                for x1, y1, x2, y2, tid in tracks:
+                    # find which detection this corresponds to by center proximity
+                    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+                    best = min(
+                        dets,
+                        key=lambda d: ((d.box[0] + d.box[2]) / 2 - cx) ** 2 +
+                                      ((d.box[1] + d.box[3]) / 2 - cy) ** 2
+                    )
+                    tracked_objs.append({
+                        "id":    int(tid),
+                        "label": best.label.lower(),
+                        "conf":  best.confidence,
+                        "box":   best.box
+                    })
+
+            # 8) decide which one to drive the gimbal
+            selected_label = (
+                app_state.tracking_target.lower()
+                if app_state.tracking_target else None
+            )
+            candidates = [
+                o for o in tracked_objs
+                if selected_label and o["label"] == selected_label
+            ]
+            # filter to only objects of that class
+            if candidates:
+                # pick lowest ID among matching class
+                best = min(candidates, key=lambda o: o["id"])
+                x1,y1,x2,y2 = best["box"]
+                cx, cy = (x1+x2)//2, (y1+y2)//2
+                app_state.latest_target_coords = (cx, cy)
+                app_state.target_lock.set()
+            else:
+                app_state.target_lock.clear()
+
+            # 9) (optional) timing log
+            # loop_ms = (time.perf_counter() - loop_start)*1e3
+            # fps = 1000.0/loop_ms if loop_ms>0 else float('inf')
+            # logger.info(f"Infer {infer_ms:.1f}ms, loop {loop_ms:.1f}ms, FPS {fps:.1f}")
 
         except Exception:
             logger.exception("Exception in detect_in_background")
             time.sleep(1)
+
             
 
 FRAME_PUB_PORT = int(os.getenv("FRAME_PUB_PORT", 5555))

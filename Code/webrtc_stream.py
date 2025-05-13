@@ -13,54 +13,60 @@ import zmq.asyncio
 import os
 
 pcs = set()
-latest_zmq_frame = None
-frame_queue = asyncio.Queue(maxsize=1)
-frame_lock = asyncio.Lock()
 
 FRAME_PUB_PORT = int(os.getenv("FRAME_PUB_PORT", 5555))
 
-# ZMQ subscriber
+
+# ZMQ setup (with conflation)
 context = zmq.asyncio.Context()
 sub = context.socket(zmq.SUB)
 sub.connect(f"tcp://localhost:{FRAME_PUB_PORT}")
 sub.setsockopt_string(zmq.SUBSCRIBE, "")
+sub.setsockopt(zmq.CONFLATE, 1)
 
+# Shared state
+latest_zmq_frame = None
+frame_lock = asyncio.Lock()
 
 class LiveCameraTrack(VideoStreamTrack):
     kind = "video"
 
-    def __init__(self):
-        super().__init__()
-
     async def recv(self):
+        # maintain a roughly 30fps pacing  
         await asyncio.sleep(1/30)
-        try:
-            frame = frame_queue.get_nowait()
-        except asyncio.QueueEmpty:
-            arr = np.zeros((480,640,3), dtype=np.uint8)
-            frame = arr
-        else:
-            # we got a real frame; optionally re‐queue it if you want to reuse
-            pass
 
+        # grab the most recent frame (or black if none yet)
+        async with frame_lock:
+            if latest_zmq_frame is None:
+                frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            else:
+                frame = latest_zmq_frame.copy()
+
+        # package for WebRTC
         video_frame = VideoFrame.from_ndarray(frame, format="bgr24")
         video_frame.pts, video_frame.time_base = await self.next_timestamp()
         return video_frame
 
+
 async def zmq_receiver():
+    global latest_zmq_frame
     try:
         while True:
-            data = await sub.recv()
+            data = await sub.recv()  # only ever the very latest, thanks to CONFLATE
+            jpg = base64.b64decode(data)
             img = cv2.imdecode(
-                np.frombuffer(base64.b64decode(data), np.uint8),
+                np.frombuffer(jpg, np.uint8),
                 cv2.IMREAD_COLOR
             )
-            # drop stale frame if queue already full
-            if frame_queue.full():
-                _ = frame_queue.get_nowait()
-            await frame_queue.put(img)
+            # store under lock
+            async with frame_lock:
+                latest_zmq_frame = img
     except asyncio.CancelledError:
         print("zmq_receiver task cancelled")
+        raise
+    except Exception as e:
+        print("[ZMQ] Receiver error:", e)
+        raise
 
 
 
