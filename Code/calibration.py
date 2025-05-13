@@ -212,13 +212,11 @@ def set_angles():
 
 @app.route('/record_point', methods=['POST'])
 def record_point():
-    data = request.get_json()
-    x = data.get('x')
-    y = data.get('y')
-
-    if x is None or y is None:
-        return jsonify({'error': 'Missing pixel coords'}), 400
-
+   # grab the last‐detected laser dot
+    pixel = app_state.last_laser_pixel
+    if not pixel:
+        return jsonify({'error': 'No laser dot detected'}), 400
+    x, y = pixel
     # Read angles from actual motor positions
     angle1 = Motor1.current_position() * DEGREES_PER_STEP_1
     angle2 = Motor2.current_position() * DEGREES_PER_STEP_2

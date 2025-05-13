@@ -9,19 +9,35 @@ GIMBAL_HOST = os.getenv("GIMBAL_HOST", "127.0.0.1")
 GIMBAL_PORT = int(os.getenv("GIMBAL_PORT", 5555))
 GIMBAL_SUB_PORT = int(os.getenv("GIMBAL_SUB_PORT", 5556))
 
-# -- Command socket
-context = zmq.Context()
-cmd_socket = context.socket(zmq.REQ)
-cmd_socket.connect(f"tcp://{GIMBAL_HOST}:{GIMBAL_PORT}")
 
 def send_gimbal_command(command: dict) -> dict:
+    """
+    Send a single REQ→REP command to the gimbal server with a 500 ms timeout.
+    Returns the server reply, or an error dict on timeout/failure.
+    """
     if not USE_REMOTE_GIMBAL:
         return {"error": "send_gimbal_command called in local mode"}
+
+    context = zmq.Context.instance()
+    sock : zmq.Socket = context.socket(zmq.REQ)
+    sock.connect(f"tcp://{GIMBAL_HOST}:{GIMBAL_PORT}")
+    # Fail fast if send or recv take >500 ms
+    sock.setsockopt(zmq.SNDTIMEO, 500)
+    sock.setsockopt(zmq.RCVTIMEO, 500)
+
     try:
-        cmd_socket.send_json(command)
-        return cmd_socket.recv_json()
+        sock.send_json(command)
+        poller = zmq.Poller()
+        poller.register(sock, zmq.POLLIN)
+        socks = dict(poller.poll(500))
+        if socks.get(sock) == zmq.POLLIN:
+            return sock.recv_json()
+        else:
+            return {"error": "gimbal server timeout"}
     except Exception as e:
         return {"error": str(e)}
+    finally:
+        sock.close()
 
 def update_gimbal_status_from_telemetry(status):
     app_state.motor1_deg = status.get("motor1", 0.0)

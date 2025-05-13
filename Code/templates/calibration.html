@@ -9,7 +9,7 @@
 
 <body>
   <h1>Laser Calibration</h1>
-  <p>Click the point where the laser dot is aimed.</p>
+  <p>Aim the laser dot at your calibration point, then click "Record Calibration Point".</p>
 
   <div id="video-wrapper" style="position: relative;">
     <div id="loading-spinner"></div>
@@ -138,35 +138,31 @@
       document.getElementById("theta2").value = t2;
       document.getElementById("theta1-label").textContent = t1.toFixed(2);
       document.getElementById("theta2-label").textContent = t2.toFixed(2);
-    }    
+    }
 
     setInterval(() => {
       if (!autoCalibrating) return;  // only sync during auto-calibration
-    
+
       fetch("/slider_status")
         .then(res => res.json())
         .then(data => {
           setSliderPosition(data.theta1, data.theta2);
         });
     }, 500);
-    
+
 
     function recordPoint() {
-      if (!lastPixel) {
-        alert("Click on the image to select a pixel first.");
-        return;
-      }
-
-      fetch('/record_point', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lastPixel)
-      })
+      fetch('/record_point', { method: 'POST' })
         .then(res => res.json())
         .then(data => {
+          if (data.error) {
+            return alert("Error: " + data.error);
+          }
           alert("Point recorded successfully!");
-          lastPixel = null;
-          document.getElementById('coords').textContent = 'Click to select a pixel';
+        })
+        .catch(err => {
+          console.error("recordPoint failed:", err);
+          alert("Failed to record point. See console for details.");
         });
     }
 
