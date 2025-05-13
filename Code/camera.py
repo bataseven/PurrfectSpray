@@ -227,14 +227,6 @@ def detect_in_background():
             with detection_lock:
                 latest_detections = dets
 
-            # If you do tiling, sum up each tile’s time:
-            # total_tile_ms = 0
-            # for tile in tiles:
-            #     t0 = time.perf_counter()
-            #     partial_dets = detector.detect(tile)
-            #     total_tile_ms += (time.perf_counter() - t0) * 1e3
-            # infer_ms = total_tile_ms
-
             # decide which class we’re actively tracking
             target = app_state.tracking_target.lower() if app_state.tracking_target else None
             if not target:
