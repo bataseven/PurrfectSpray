@@ -209,3 +209,4 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
     while motor.run(): pass
 
     motor.set_current_position(0)
+    motor.disable_outputs()
