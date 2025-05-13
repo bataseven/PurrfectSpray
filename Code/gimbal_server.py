@@ -95,6 +95,16 @@ def handle_command(rep_socket: zmq.Socket):
                 "sensor2": not hall_sensor_2.value
             })
 
+        elif cmd == "enable":
+            motor = message.get("motor")
+            (Motor1 if motor == 1 else Motor2).enable_outputs()
+            rep_socket.send_json({"status": "ok"})
+            
+        elif cmd == "disable":
+            motor = message.get("motor")
+            (Motor1 if motor == 1 else Motor2).disable_outputs()
+            rep_socket.send_json({"status": "ok"})
+            
         else:
             rep_socket.send_json({"error": "Unknown command"})
 

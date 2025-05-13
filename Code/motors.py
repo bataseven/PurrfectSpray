@@ -76,7 +76,16 @@ if USE_REMOTE_GIMBAL:
             return self._position
 
         def disable_outputs(self):
-            pass
+            send_gimbal_command({
+                "cmd": "disable",
+                "motor": self.motor_id
+            })
+        
+        def enable_outputs(self):
+            send_gimbal_command({
+                "cmd": "enable",
+                "motor": self.motor_id
+            })
 
     Motor1 = RemoteMotor(1, DEGREES_PER_STEP_1)
     Motor2 = RemoteMotor(2, DEGREES_PER_STEP_2)
