@@ -141,6 +141,8 @@ def offer_proxy():
 
 @socketio.on('connect')
 def on_connect():
+    Motor1.enable_outputs()
+    Motor2.enable_outputs()
     if app_state.viewer_count == 0:
         # Set the detector to the default model if None is set
         if detector_name == "none" and app_state.current_mode != MotorMode.TRACKING:
@@ -180,6 +182,9 @@ def on_disconnect():
             set_detector(None)
             app_state.tracking_target = None
             socketio.emit('model_changed', {'status': 'disabled'})
+            # Disable the motors
+            Motor1.disable_outputs()
+            Motor2.disable_outputs()
         
         # Turn off the laser if no viewers are connected
         if laser_pin.value:
