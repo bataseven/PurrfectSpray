@@ -4,7 +4,7 @@ import math
 import logging
 from AccelStepper import AccelStepper, DRIVER
 from hardware import hall_sensor_1, hall_sensor_2
-from app_state import app_state
+from app_state import app_state, MotorMode
 from gimbal_client import send_gimbal_command
 
 logger = logging.getLogger("App")
@@ -92,9 +92,6 @@ if USE_REMOTE_GIMBAL:
 
     def homing_procedure():
         print("[Remote] Skipping homing — expected to be done on Gimbal Pi.")
-        app_state.homing_complete = True
-        app_state.homing_error = False
-        return True
 
 else:
     class LocalMotor(AccelStepper):
@@ -120,6 +117,7 @@ else:
 
     def homing_procedure():
         try:
+            app_state.current_mode = MotorMode.HOMING
             home_motor(Motor1, hall_sensor_1, 1)
             home_motor(Motor2, hall_sensor_2, 2)
             Motor1.set_max_speed(STEPPER_MAX_SPEED)
@@ -127,13 +125,11 @@ else:
             Motor2.set_max_speed(STEPPER_MAX_SPEED)
             Motor2.set_acceleration(STEPPER_ACCELERATION)
             logger.info("Homing procedure complete and speed limits set")
-            app_state.homing_error = False
-            app_state.homing_complete = True
+            app_state.current_mode = MotorMode.IDLE
             return True
         except Exception:
             logger.exception("Error during homing_procedure")
-            app_state.homing_error = True
-            app_state.homing_complete = False
+            app_state.current_mode = MotorMode.HOMING_ERROR
             return False
 
 

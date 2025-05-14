@@ -244,7 +244,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // 🔁 Status Update from Server
     socket.on("status_update", data => {
-        isHomingComplete = !data.homing_complete;
+        // Check for homing only once
+        if (!isHomingComplete)
+            isHomingComplete = data.current_mode === "idle";
 
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";

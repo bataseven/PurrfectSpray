@@ -201,17 +201,13 @@ def on_disconnect():
 
 @socketio.on('click_target')
 def handle_click_target(data):
-    if not app_state.homing_complete:
-        return
-
     if app_state.active_controller_sid is None:
         app_state.active_controller_sid = request.sid
         socketio.emit("controller_update", {"sid": request.sid})
     elif app_state.active_controller_sid != request.sid:
         return
 
-    if not app_state.homing_complete:
-        return
+
     x = data.get('x')
     y = data.get('y')
     if x is None or y is None:
@@ -231,9 +227,7 @@ def handle_click_target(data):
 
 
 @socketio.on('set_motor_position')
-def handle_set_motor_position(data):
-    if not app_state.homing_complete:
-        return
+def handle_set_motor_position(data: dict):
     if not session.get("is_admin"):
         return
     motor_num = data.get('motor')
@@ -277,20 +271,16 @@ def handle_change_model(data):
 def handle_motor_control(data):
     global motor_active
 
+    if not app_state.current_mode in {MotorMode.TRACKING, MotorMode.IDLE, MotorMode.FOLLOW}:
+        return
+    
     target_class = data.get('target')
     mode = data.get('mode')
     
     app_state.current_mode = MotorMode(mode) if mode else app_state.current_mode
     app_state.active_controller_sid = request.sid
 
-    
-    if not app_state.homing_complete:
-        emit('motor_status', {
-            'mode': app_state.current_mode.value,
-            'sid': app_state.active_controller_sid
-        })
-
-    elif mode == MotorMode.TRACKING.value:
+    if mode == MotorMode.TRACKING.value:
         motor_active = True
         if target_class:
             app_state.tracking_target = target_class
@@ -408,24 +398,24 @@ def perform_interpolated_movement(current_coords, last_steps):
 def run_motor_loop():
     try:
         logger.info("Starting homing procedure")
-        app_state.homing_complete = homing_procedure()
-        logger.info("Homing complete" if app_state.homing_complete else "Homing failed")
+        homing_procedure()
 
         last_steps = (None, None)
         current_coords = None
 
         while True:
-            if motor_active and app_state.homing_complete and app_state.target_lock.is_set():
+            if motor_active and app_state.target_lock.is_set():
                 app_state.target_lock.clear()
                 new_coords = app_state.latest_target_coords
                 if new_coords != (None, None):
                     current_coords = new_coords  # Snap to the latest target
 
-            if motor_active and app_state.homing_complete and current_coords:
+            if motor_active and current_coords:
                 last_steps = perform_interpolated_movement(current_coords, last_steps)
 
-            Motor1.run()
-            Motor2.run()
+            if app_state.current_mode in {MotorMode.IDLE, MotorMode.FOLLOW, MotorMode.TRACKING}:
+                Motor1.run()
+                Motor2.run()
             time.sleep(0.001)
     except Exception as e:
         logger.exception("Error in motor_loop")
@@ -439,8 +429,7 @@ def status_broadcast_loop():
                 'motor2': app_state.motor2_deg or 0.0,
                 'cpu_temp': get_cpu_temp(),
                 'laser': app_state.laser_on,
-                'homing_complete': app_state.homing_complete,
-                'homing_error': app_state.homing_error,
+                'mode': app_state.current_mode.value,
                 'sensor1': app_state.sensor1_triggered,
                 'sensor2': app_state.sensor2_triggered,
                 'gimbal_cpu_temp': app_state.gimbal_cpu_temp

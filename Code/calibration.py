@@ -6,7 +6,7 @@ import threading
 import json
 from flask import Flask, render_template, request, jsonify, Response
 from hardware import laser_pin
-from app_state import app_state
+from app_state import app_state, MotorMode
 # Set CALIBRATION_MODE early
 os.environ["CALIBRATION_MODE"] = "1"
 
@@ -128,7 +128,7 @@ def toggle_laser():
 
 @app.route('/start_auto_calibration')
 def start_auto_calibration():
-    if not app_state.homing_complete:
+    if not app_state.current_mode == MotorMode.IDLE:
         return jsonify({"message": "Please wait for homing to complete."}), 400
 
     if getattr(app_state, "auto_calibrating", False):
@@ -193,7 +193,7 @@ def video_feed():
 
 @app.route('/homing_status')
 def homing_status():
-    return jsonify({'complete': app_state.homing_complete})
+    return jsonify({'complete': True if app_state.current_mode == MotorMode.IDLE else False})
 
 @app.route('/set_angles', methods=['POST'])
 def set_angles():
@@ -315,9 +315,8 @@ def detect_laser_dot():
 
 def motor_loop():
     """Continuously run motors to reach target positions."""
-    homing_procedure()
     print("[INFO] Homing motors before calibration...")
-    app_state.homing_complete = True
+    homing_procedure()
     print("[INFO] Homing complete.")
     while True:
         Motor1.run()

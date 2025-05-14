@@ -6,10 +6,13 @@ import threading
 from enum import Enum
 
 class MotorMode(Enum):
+    HOMING = "homing"
+    HOMING_ERROR = "homing_error"
+    GIMBAL_NOT_FOUND = "gimbal_not_found"
     IDLE = "idle"
     FOLLOW = "follow"
     TRACKING = "tracking"
-
+    UNKNOWN = "unknown"
 
 class AppState:
     def __init__(self):
@@ -28,8 +31,6 @@ class AppState:
         self.encoded_jpeg: Optional[bytes] = None
         self.jpeg_lock = Lock()
         
-        self.homing_complete = False
-        self.homing_error = False
         self.auto_calibrating = False
         self.last_laser_pixel = None
 
@@ -41,7 +42,7 @@ class AppState:
         self.laser_on = False
         self.sensor1_triggered = False
         self.sensor2_triggered = False
-        self.current_mode = MotorMode.IDLE
+        self.current_mode = MotorMode.HOMING
         self.motor_active = False
         
         self.water_gun_active = False
