@@ -95,10 +95,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     console.log("[RTC] Video playback started");
                     if (modeIndicator) modeIndicator.style.display = "block";
                     resolve();
-                    
-                        videoTip.classList.add("show");
-                        videoTip.classList.remove("hidden");
-                    
+
+                    videoTip.classList.add("show");
+                    videoTip.classList.remove("hidden");
+
                 };
             };
 
@@ -151,10 +151,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (modeIndicator) modeIndicator.style.display = 'block';
 
-        
-            videoTip.classList.add("show");
-            videoTip.classList.remove("hidden");
-        
+
+        videoTip.classList.add("show");
+        videoTip.classList.remove("hidden");
+
     }
 
     setTimeout(() => {
@@ -249,8 +249,10 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
         document.getElementById("cpu-temp").textContent = data.cpu_temp + "°C";
-        document.getElementById("gimbal-cpu-temp").textContent =
-            data.gimbal_cpu_temp !== undefined ? data.gimbal_cpu_temp.toFixed(1) + "°C" : "-";
+        const el = document.getElementById("gimbal-cpu-temp");
+        el && (el.textContent = (data.gimbal_cpu_temp != null)
+            ? `${data.gimbal_cpu_temp.toFixed(1)}°C`
+            : "-");
 
 
         const laserStatus = document.getElementById("laser-status");
@@ -429,10 +431,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     document.getElementById("video-feed").addEventListener("click", function (event) {
         fadeOutVideoTipAfterDelay(1000);
-    
+
         const now = Date.now();
         const doubleClickThreshold = 1500; // ms
-    
+
         const rect = this.getBoundingClientRect();
         const renderedWidth = rect.width;
         const renderedHeight = rect.height;
@@ -442,13 +444,13 @@ document.addEventListener("DOMContentLoaded", function () {
         const scaleY = nativeHeight / renderedHeight;
         const x = Math.round((event.clientX - rect.left) * scaleX);
         const y = Math.round((event.clientY - rect.top) * scaleY);
-    
+
         if (document.getElementById("homing-status").textContent === "Error" &&
             !document.getElementById("mode-toast").classList.contains("show")) {
             showToast("Homing failed. Please check the robot.");
             return;
         }
-    
+
         if (currentMode === "tracking") {
             if (now - lastClickTime < doubleClickThreshold) {
                 // Second click: switch to idle and emit click
@@ -461,18 +463,18 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             return; // prevent default action in tracking mode unless double-click
         }
-    
+
         if (!isHomingComplete) {
             socket.emit("set_motor_mode", { mode: "idle" });
         }
-    
+
         if (currentMode === "follow") {
             socket.emit("set_motor_mode", { mode: "idle" });
         }
-    
+
         socket.emit("click_target", { x, y });
     });
-    
+
 
     socket.on("target_updated", data => {
         const newTarget = data.target;
