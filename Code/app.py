@@ -429,7 +429,7 @@ def status_broadcast_loop():
                 'motor2': app_state.motor2_deg or 0.0,
                 'cpu_temp': get_cpu_temp(),
                 'laser': app_state.laser_on,
-                'mode': app_state.current_mode.value,
+                'current_mode': app_state.current_mode.value,
                 'sensor1': app_state.sensor1_triggered,
                 'sensor2': app_state.sensor2_triggered,
                 'gimbal_cpu_temp': app_state.gimbal_cpu_temp

@@ -245,8 +245,10 @@ document.addEventListener("DOMContentLoaded", function () {
     // 🔁 Status Update from Server
     socket.on("status_update", data => {
         // Check for homing only once
-        if (!isHomingComplete)
+        if (!isHomingComplete){
             isHomingComplete = data.current_mode === "idle";
+            console.log(data.current_mode);
+        }
 
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
@@ -262,15 +264,21 @@ document.addEventListener("DOMContentLoaded", function () {
         laserStatus.className = 'status-value ' + (data.laser ? "On" : "Off");
 
         const homingStatus = document.getElementById("homing-status");
-        if (data.homing_error) {
-            homingStatus.textContent = "Error";
+        if (data.current_mode === "gimbal_not_found") {
+            homingStatus.textContent = "Gimbal Disconnected";
             homingStatus.className = "status-value Error";
-        } else if (data.homing_complete) {
-            homingStatus.textContent = "Complete";
+        } else if (data.current_mode === "homing_error") {
+            homingStatus.textContent = "Error Homing";
             homingStatus.className = "status-value Complete";
-        } else {
-            homingStatus.textContent = "In Progress";
+        } else if (data.current_mode === "unknown") {
+            homingStatus.textContent = "Unknown State";
+            homingStatus.className = "status-value Error";
+        }else if (data.current_mode === "homing") {
+            homingStatus.textContent = "Homing...";
             homingStatus.className = "status-value InProgress";
+        }else{
+            homingStatus.textContent = "Running";
+            homingStatus.className = "status-value Complete";
         }
 
         document.getElementById("sensor-status-1").textContent = data.sensor1 ? "Detected!" : "Not detected";

@@ -36,8 +36,9 @@ def run_motor_loop():
     print("[Gimbal Server] Homing complete." if app_state.current_mode == MotorMode.IDLE else "[Gimbal Server] Homing failed.")
     while not app_state.shutdown_event.is_set():
         try:
-            Motor1.run()
-            Motor2.run()
+            if app_state.current_mode in {MotorMode.IDLE, MotorMode.FOLLOW, MotorMode.TRACKING}:
+                Motor1.run()
+                Motor2.run()
             time.sleep(0.001)
         except Exception as e:
             print(f"[Motor Loop Error] {e}")
