@@ -154,6 +154,8 @@ def on_connect():
     socketio.emit("viewer_count", {"count": app_state.viewer_count})
     print("[SOCKET] Client connected")
 
+    emit("target_updated", { "target": app_state.tracking_target })
+    
     emit('motor_status', {
         'mode': app_state.current_mode.value,
         'target': app_state.tracking_target
