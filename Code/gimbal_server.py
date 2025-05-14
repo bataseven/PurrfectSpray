@@ -3,7 +3,10 @@ import time
 import threading
 import zmq
 from dotenv import load_dotenv
-import signal
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv(override=True)
 

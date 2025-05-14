@@ -13,7 +13,7 @@ import zmq.asyncio
 import os
 import logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("App")
+logger = logging.getLogger(__name__)
 
 pcs = set()
 
