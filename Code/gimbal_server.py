@@ -31,9 +31,9 @@ def create_zmq_sockets():
     return rep_socket, pub_socket
 
 def run_motor_loop():
-    print("[Gimbal Server] Running homing procedure...")
+    logger.info("[Gimbal Server] Running homing procedure...")
     homing_procedure()
-    print("[Gimbal Server] Homing complete." if app_state.current_mode == MotorMode.IDLE else "[Gimbal Server] Homing failed.")
+    logger.info("[Gimbal Server] Homing complete." if app_state.current_mode == MotorMode.IDLE else "[Gimbal Server] Homing failed.")
     while not app_state.shutdown_event.is_set():
         try:
             if app_state.current_mode in {MotorMode.IDLE, MotorMode.FOLLOW, MotorMode.TRACKING}:
@@ -41,7 +41,7 @@ def run_motor_loop():
                 Motor2.run()
             time.sleep(0.001)
         except Exception as e:
-            print(f"[Motor Loop Error] {e}")
+            logger.info(f"[Motor Loop Error] {e}")
             break
 
 def publish_status_loop(pub_socket: zmq.Socket):
@@ -59,13 +59,13 @@ def publish_status_loop(pub_socket: zmq.Socket):
             pub_socket.send_json(status)
             time.sleep(0.5)
         except Exception as e:
-            print(f"[Publish Status Loop Error] {e}")
+            logger.info(f"[Publish Status Loop Error] {e}")
             break
 
 def handle_command(rep_socket: zmq.Socket):
     try:
         message: dict = rep_socket.recv_json()
-        print(f"[Gimbal Server] Received message: {message}")
+        logger.info(f"[Gimbal Server] Received message: {message}")
         cmd = message.get("cmd")
 
         if cmd == "move":
@@ -125,7 +125,7 @@ def main():
     poller = zmq.Poller()
     poller.register(rep_socket, zmq.POLLIN)
 
-    print("[Gimbal Server] Listening on port 5555 for commands...")
+    logger.info("[Gimbal Server] Listening on port 5555 for commands...")
     try:
         # loop until shutdown_event is set
         while not app_state.shutdown_event.is_set():

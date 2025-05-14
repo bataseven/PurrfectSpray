@@ -284,7 +284,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("sensor-status-1").textContent = data.sensor1 ? "Detected!" : "Not detected";
         document.getElementById("sensor-status-2").textContent = data.sensor2 ? "Detected!" : "Not detected";
 
-        trackBtn.disabled = !data.homing_complete;
+        trackBtn.disabled = data.current_mode === "gimbal_not_found" || data.current_mode === "homing_error" || data.current_mode === "unknown";
     });
 
     // 🔁 Auto Mode Feedback

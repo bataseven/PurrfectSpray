@@ -58,7 +58,7 @@ for idx_str, model_filename in model_mapping.items():
     model_path = os.path.join(script_dir, model_filename)
     surface_models[idx] = joblib.load(model_path)
 
-print(f"Loaded {len(surface_models)} models.")
+logger.info(f"Loaded {len(surface_models)} models.")
 
 pcs = set()
 
@@ -152,7 +152,7 @@ def on_connect():
             socketio.emit('laser_status', {'status': 'On'})
     app_state.viewer_count += 1
     socketio.emit("viewer_count", {"count": app_state.viewer_count})
-    print("[SOCKET] Client connected")
+    logger.info(f"[SOCKET] Client connected (Count: {app_state.viewer_count})")
 
     emit("target_updated", { "target": app_state.tracking_target })
     
@@ -173,7 +173,7 @@ def on_disconnect():
         socketio.emit(
             "viewer_count", {"count": app_state.viewer_count})
     if request.sid == app_state.active_controller_sid:
-        print("[INFO] Releasing controller lock on disconnect")
+        logger.info("[INFO] Releasing controller lock on disconnect")
         app_state.active_controller_sid = None
         socketio.emit("controller_update", {"sid": None})
 
@@ -269,11 +269,11 @@ def handle_change_model(data):
 
 @socketio.on('set_motor_mode')
 def handle_motor_control(data):
-    global motor_active
-
     if not app_state.current_mode in {MotorMode.TRACKING, MotorMode.IDLE, MotorMode.FOLLOW}:
         return
     
+    global motor_active
+
     target_class = data.get('target')
     mode = data.get('mode')
     
@@ -335,7 +335,7 @@ def handle_update_target(data):
     target = data.get("target")
     if target:
         app_state.tracking_target = target
-        print(f"[SocketIO] Target updated to: {target}")
+        logger.info(f"[SocketIO] Target updated to: {target}")
         socketio.emit("target_updated", { "target": target })
 
 

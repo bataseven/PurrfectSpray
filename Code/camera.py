@@ -191,16 +191,16 @@ def set_detector(model_name):
     with detector_lock:
         if model_name is None:
             detector = None
-            print("[Detector] Object detection disabled")
+            logger.info("[Detector] Object detection disabled")
         elif model_name == 'mobilenet':
             detector = MobileNetDetector()
-            print("Using MobileNet detector")
+            logger.info("Using MobileNet detector")
         elif model_name == 'yolov5n':
             detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=1280)
-            print("Using YOLOv5n detector")
+            logger.info("Using YOLOv5n detector")
         elif model_name == 'openvino':
             detector = YoloV5VinoDetector(xml_path=xml, conf_threshold=0.3)
-            print("Using OpenVINO YOLOv5 detector")
+            logger.info("Using OpenVINO YOLOv5 detector")
         else:
             raise ValueError(f"Unknown model: {model_name}")
         

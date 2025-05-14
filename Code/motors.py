@@ -42,7 +42,7 @@ def closest_equivalent_angle(target: float, current: float) -> float:
 
 # Remote vs Local mode
 USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
-print(f"[Motors] Running with USE_REMOTE_GIMBAL={USE_REMOTE_GIMBAL}")
+logger.info(f"[Motors] Running with USE_REMOTE_GIMBAL={USE_REMOTE_GIMBAL}")
 
 if USE_REMOTE_GIMBAL:
     class RemoteMotor:
@@ -91,7 +91,7 @@ if USE_REMOTE_GIMBAL:
     Motor2 = RemoteMotor(2, DEGREES_PER_STEP_2)
 
     def homing_procedure():
-        print("[Remote] Skipping homing — expected to be done on Gimbal Pi.")
+        logger.info("[Remote] Skipping homing — expected to be done on Gimbal Pi.")
 
 else:
     class LocalMotor(AccelStepper):
@@ -138,7 +138,7 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
     Probe forward up to ±180° and home toward the closer sensor.
     If the sensor triggers within a small forward arc, skip backward probing.
     """
-    print(f"Homing Motor {motor_num} with smart arc detection.")
+    logger.info(f"Homing Motor {motor_num} with smart arc detection.")
     homing_speed = 500
     motor.set_acceleration(1000)
 
@@ -168,19 +168,19 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
         
         # ---- Exit initial zone if active ----
         if trigger_start is None:
-            print(f"Motor {motor_num} still in trigger zone; moving out to arc start...")
+            logger.info(f"Motor {motor_num} still in trigger zone; moving out to arc start...")
             motor.set_speed(-homing_speed)
             while sensor_active() and abs(motor.current_position() - start_pos) < max_steps:
                 motor.run_speed()
-            print(f"Motor {motor_num} exited trigger zone at {motor.current_position()} steps.")
+            logger.info(f"Motor {motor_num} exited trigger zone at {motor.current_position()} steps.")
 
         motor.set_speed(direction * homing_speed)
         while not sensor_active(): motor.run_speed()
         trigger_start = motor.current_position()
-        print(f"Motor {motor_num} found trigger at {trigger_start} steps.")
+        logger.info(f"Motor {motor_num} found trigger at {trigger_start} steps.")
         while sensor_active(): motor.run_speed()
         trigger_end = motor.current_position()
-        print(f"Motor {motor_num} exited trigger at {trigger_end} steps.")        
+        logger.info(f"Motor {motor_num} exited trigger at {trigger_end} steps.")        
     else:
         # return to start
         motor.move_to(start_pos)
@@ -194,7 +194,7 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
         trigger_start = motor.current_position()
         while sensor_active(): motor.run_speed()
         trigger_end = motor.current_position()
-        print(f"Motor {motor_num} exited trigger at {trigger_end} steps.")
+        logger.info(f"Motor {motor_num} exited trigger at {trigger_end} steps.")
     
     # Raise error if no sensor found
     if not (fwd_found or bwd_found):

@@ -11,6 +11,9 @@ import cv2
 import zmq
 import zmq.asyncio
 import os
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("App")
 
 pcs = set()
 
@@ -62,10 +65,10 @@ async def zmq_receiver():
             async with frame_lock:
                 latest_zmq_frame = img
     except asyncio.CancelledError:
-        print("zmq_receiver task cancelled")
+        logger.info("zmq_receiver task cancelled")
         raise
     except Exception as e:
-        print("[ZMQ] Receiver error:", e)
+        logger.info("[ZMQ] Receiver error:", e)
         raise
 
 
@@ -79,7 +82,7 @@ async def offer(request):
 
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():
-        print("Connection state:", pc.connectionState)
+        logger.info("Connection state:", pc.connectionState)
         if pc.connectionState == "failed":
             await pc.close()
             pcs.discard(pc)

@@ -12,7 +12,7 @@ if not USE_REMOTE_GIMBAL:
             super().__init__(*args, **kwargs)
 
         def spray(self, duration=0.5):
-            print(f"Spraying for {duration} seconds")
+            logger.info(f"Spraying for {duration} seconds")
             def spray_task():
                 self.on()
                 time.sleep(duration)
@@ -24,7 +24,7 @@ if not USE_REMOTE_GIMBAL:
     hall_sensor_2 = DigitalInputDevice(26, pull_up=False)
     fan_pin = OutputDevice(11, active_high=True, initial_value=True)
     laser_pin = OutputDevice(0, active_high=True, initial_value=False)
-    print("Water gun pin initialized as TimedOutputDevice")
+    logger.info("Water gun pin initialized as TimedOutputDevice")
     water_gun_pin = TimedOutputDevice(1, active_high=True, initial_value=False)
 
     enable_pin_1 = OutputDevice(12, active_high=False, initial_value=False)

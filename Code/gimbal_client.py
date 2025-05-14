@@ -3,6 +3,7 @@ import zmq
 import os
 import threading
 from app_state import app_state, MotorMode
+import time
 
 USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
 GIMBAL_HOST = os.getenv("GIMBAL_HOST", "127.0.0.1")
@@ -48,11 +49,12 @@ def update_gimbal_status_from_telemetry(status : dict):
     app_state.sensor1_triggered = status.get("sensor1", False)
     app_state.sensor2_triggered = status.get("sensor2", False)
     app_state.gimbal_cpu_temp = status.get("gimbal_cpu_temp", None)
-    print("Received telemetry: ", status.get("mode", False))
     if not homing_done:
         app_state.current_mode = MotorMode(status.get("mode", MotorMode.UNKNOWN.value))
     homing_done = status.get("mode", False) == MotorMode.IDLE.value
         
+
+LOST_THRESHOLD = 1.0
 
 def listen_for_telemetry(callback):
     if not USE_REMOTE_GIMBAL:
@@ -64,11 +66,22 @@ def listen_for_telemetry(callback):
     telemetry_socket.setsockopt_string(zmq.SUBSCRIBE, '')
 
     def _worker():
+        last_heard = time.time()
         while not app_state.shutdown_event.is_set():
             try:
-                if telemetry_socket.poll(timeout=100):  # 100 ms timeout
+                if telemetry_socket.poll(timeout=100):  # 100 ms
                     message = telemetry_socket.recv_json()
+                    last_heard = time.time()
+                    # when we get real telemetry *before* HOMING_COMPLETE,
+                    # callback() already knows to absorb modes until then
                     callback(message)
+                else:
+                    # no data this iteration
+                    now = time.time()
+                    # if we’ve gone too long without hearing, mark lost
+                    if now - last_heard > LOST_THRESHOLD:
+                        app_state.current_mode = MotorMode.GIMBAL_NOT_FOUND
+                # loop again
             except Exception as e:
                 if not app_state.shutdown_event.is_set():
                     print(f"[Telemetry Error] {e}")
