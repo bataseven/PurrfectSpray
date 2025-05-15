@@ -52,6 +52,9 @@ if USE_REMOTE_GIMBAL:
             self._position = 0  # virtual position in steps
 
         def move_to(self, step_pos: int):
+            if not app_state.current_mode in {MotorMode.IDLE, MotorMode.TRACKING, MotorMode.FOLLOW}: 
+                logger.warning(f"[Remote] Ignoring move_to({step_pos}) in mode {app_state.current_mode}")
+                return
             raw_deg = step_pos * self.degrees_per_step
             current_deg = self._position * self.degrees_per_step
             target_deg = closest_equivalent_angle(raw_deg, current_deg)

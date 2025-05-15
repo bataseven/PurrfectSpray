@@ -9,6 +9,8 @@ USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
 GIMBAL_HOST = os.getenv("GIMBAL_HOST", "127.0.0.1")
 GIMBAL_PORT = int(os.getenv("GIMBAL_PORT", 5555))
 GIMBAL_SUB_PORT = int(os.getenv("GIMBAL_SUB_PORT", 5556))
+_prev_mode = None
+_LOST_THRESHOLD = 1.0  # seconds without telemetry → considered "lost"
 
 
 def send_gimbal_command(command: dict) -> dict:
@@ -53,9 +55,6 @@ def update_gimbal_status_from_telemetry(status : dict):
         app_state.current_mode = MotorMode(status.get("mode", MotorMode.UNKNOWN.value))
     homing_done = status.get("mode", False) == MotorMode.IDLE.value
         
-
-LOST_THRESHOLD = 1.0
-
 def listen_for_telemetry(callback):
     if not USE_REMOTE_GIMBAL:
         return
@@ -66,22 +65,35 @@ def listen_for_telemetry(callback):
     telemetry_socket.setsockopt_string(zmq.SUBSCRIBE, '')
 
     def _worker():
+        global _prev_mode
         last_heard = time.time()
+
         while not app_state.shutdown_event.is_set():
             try:
-                if telemetry_socket.poll(timeout=100):  # 100 ms
+                # wait up to 100 ms for data
+                if telemetry_socket.poll(timeout=100):
                     message = telemetry_socket.recv_json()
-                    last_heard = time.time()
-                    # when we get real telemetry *before* HOMING_COMPLETE,
-                    # callback() already knows to absorb modes until then
-                    callback(message)
-                else:
-                    # no data this iteration
                     now = time.time()
-                    # if we’ve gone too long without hearing, mark lost
-                    if now - last_heard > LOST_THRESHOLD:
-                        app_state.current_mode = MotorMode.GIMBAL_NOT_FOUND
-                # loop again
+                    last_heard = now
+
+                    # if we were in a disconnected state, restore the old mode once
+                    if app_state.current_mode == MotorMode.GIMBAL_NOT_FOUND and _prev_mode is not None:
+                        app_state.current_mode = _prev_mode
+                        _prev_mode = None
+
+                    # pass the fresh message on to your existing updater
+                    callback(message)
+
+                else:
+                    # no data this cycle → check for disconnect
+                    now = time.time()
+                    if (now - last_heard) > _LOST_THRESHOLD:
+                        # first time we notice the gap, stash the current mode
+                        if app_state.current_mode != MotorMode.GIMBAL_NOT_FOUND:
+                            _prev_mode = app_state.current_mode
+                            app_state.current_mode = MotorMode.GIMBAL_NOT_FOUND
+                    # then loop again
+
             except Exception as e:
                 if not app_state.shutdown_event.is_set():
                     print(f"[Telemetry Error] {e}")
