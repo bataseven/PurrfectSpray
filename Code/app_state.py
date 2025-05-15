@@ -5,14 +5,20 @@ from typing import Optional
 import threading
 from enum import Enum
 
-class MotorMode(Enum):
+class GimbalState(Enum):
     HOMING = "homing"
     HOMING_ERROR = "homing_error"
     GIMBAL_NOT_FOUND = "gimbal_not_found"
-    IDLE = "idle"
+    READY = "ready"
     FOLLOW = "follow"
     TRACKING = "tracking"
     UNKNOWN = "unknown"
+    
+class ControlMode(Enum):
+    """What the user/app is asking the gimbal to do."""
+    MANUAL           = "manual"          # user clicks on video to move
+    FOLLOW           = "follow"          # cursor‐follow mode
+    TRACKING         = "tracking"        # auto‐tracking a detected object
 
 class AppState:
     def __init__(self):
@@ -42,7 +48,8 @@ class AppState:
         self.laser_on = False
         self.sensor1_triggered = False
         self.sensor2_triggered = False
-        self.current_mode = MotorMode.GIMBAL_NOT_FOUND
+        self.gimbal_state = GimbalState.GIMBAL_NOT_FOUND
+        self.control_mode = ControlMode.MANUAL
         self.motor_active = False
         
         self.water_gun_active = False

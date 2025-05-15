@@ -249,6 +249,7 @@ document.addEventListener("DOMContentLoaded", function () {
             isHomingComplete = data.current_mode === "idle";
             console.log(data.current_mode);
         }
+        console.log("mode: ", data.current_mode);
 
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
