@@ -42,7 +42,7 @@ class AppState:
         self.laser_on = False
         self.sensor1_triggered = False
         self.sensor2_triggered = False
-        self.current_mode = MotorMode.HOMING
+        self.current_mode = MotorMode.GIMBAL_NOT_FOUND
         self.motor_active = False
         
         self.water_gun_active = False

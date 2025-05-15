@@ -434,7 +434,7 @@ def status_broadcast_loop():
                 'sensor2': app_state.sensor2_triggered,
                 'gimbal_cpu_temp': app_state.gimbal_cpu_temp
             })
-            time.sleep(0.75)
+            socketio.sleep(0.5)
     except Exception as e:
         logger.exception("Error in status_broadcast_loop")
 
@@ -457,7 +457,7 @@ def start_local_gimbal_status_updater():
 def start_background_threads():
     register_shutdown()
     threading.Thread(target=run_motor_loop, daemon=True).start()
-    threading.Thread(target=status_broadcast_loop, daemon=True).start()
+    socketio.start_background_task(status_broadcast_loop)
     threading.Thread(target=capture_and_process, daemon=True).start()
     threading.Thread(target=detect_in_background, daemon=True).start()
     threading.Thread(target=stream_frames_over_zmq, daemon=True).start()
