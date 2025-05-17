@@ -17,7 +17,7 @@ os.environ["USE_REMOTE_GIMBAL"] = "False"
 from app_utils import graceful_exit, register_shutdown, get_cpu_temp
 from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2, homing_procedure
 from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2
-from app_state import app_state, MotorMode
+from app_state import app_state, GimbalState
 
 
 def create_zmq_sockets():
@@ -36,10 +36,10 @@ def create_zmq_sockets():
 def run_motor_loop():
     logger.info("[Gimbal Server] Running homing procedure...")
     homing_procedure()
-    logger.info("[Gimbal Server] Homing complete." if app_state.current_mode == MotorMode.IDLE else "[Gimbal Server] Homing failed.")
+    logger.info("[Gimbal Server] Homing complete." if app_state.gimbal_state == GimbalState.READY else "[Gimbal Server] Homing failed.")
     while not app_state.shutdown_event.is_set():
         try:
-            if app_state.current_mode in {MotorMode.IDLE, MotorMode.FOLLOW, MotorMode.TRACKING}:
+            if app_state.gimbal_state == GimbalState.READY:
                 Motor1.run()
                 Motor2.run()
             time.sleep(0.001)
@@ -54,10 +54,10 @@ def publish_status_loop(pub_socket: zmq.Socket):
                 "motor1": Motor1.current_position() * DEGREES_PER_STEP_1,
                 "motor2": Motor2.current_position() * DEGREES_PER_STEP_2,
                 "laser": laser_pin.value,
-                "mode": app_state.current_mode.value,
                 "sensor1": not hall_sensor_1.value,
                 "sensor2": not hall_sensor_2.value,
-                "gimbal_cpu_temp": get_cpu_temp()
+                "gimbal_cpu_temp": get_cpu_temp(),
+                "gimbal_state": app_state.gimbal_state.value,
             }
             pub_socket.send_json(status)
             time.sleep(0.5)
@@ -72,7 +72,7 @@ def handle_command(rep_socket: zmq.Socket):
         cmd = message.get("cmd")
 
         if cmd == "move":
-            if app_state.current_mode not in {MotorMode.IDLE, MotorMode.FOLLOW, MotorMode.TRACKING}:
+            if not app_state.gimbal_state == GimbalState.READY:
                 rep_socket.send_json({"error": "Gimbal not ready for move command"})
                 return
             motor = message.get("motor")
@@ -95,7 +95,7 @@ def handle_command(rep_socket: zmq.Socket):
                 "motor1": Motor1.current_position() * DEGREES_PER_STEP_1,
                 "motor2": Motor2.current_position() * DEGREES_PER_STEP_2,
                 "laser": laser_pin.value,
-                "mode": app_state.current_mode.value,
+                "mode": app_state.gimbal_state.value,
                 "sensor1": not hall_sensor_1.value,
                 "sensor2": not hall_sensor_2.value
             })

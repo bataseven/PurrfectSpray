@@ -4,7 +4,7 @@ import math
 import logging
 from AccelStepper import AccelStepper, DRIVER
 from hardware import hall_sensor_1, hall_sensor_2
-from app_state import app_state, MotorMode
+from app_state import app_state, GimbalState
 from gimbal_client import send_gimbal_command
 
 logger = logging.getLogger("App")
@@ -52,8 +52,8 @@ if USE_REMOTE_GIMBAL:
             self._position = 0  # virtual position in steps
 
         def move_to(self, step_pos: int):
-            if not app_state.current_mode in {MotorMode.IDLE, MotorMode.TRACKING, MotorMode.FOLLOW}: 
-                logger.warning(f"[Remote] Ignoring move_to({step_pos}) in mode {app_state.current_mode}")
+            if not app_state.gimbal_state == GimbalState.READY: 
+                logger.warning(f"[Remote] Ignoring move_to({step_pos}) in mode {app_state.gimbal_state}")
                 return
             raw_deg = step_pos * self.degrees_per_step
             current_deg = self._position * self.degrees_per_step
@@ -120,7 +120,7 @@ else:
 
     def homing_procedure():
         try:
-            app_state.current_mode = MotorMode.HOMING
+            app_state.gimbal_state = GimbalState.HOMING
             home_motor(Motor1, hall_sensor_1, 1)
             home_motor(Motor2, hall_sensor_2, 2)
             Motor1.set_max_speed(STEPPER_MAX_SPEED)
@@ -128,11 +128,11 @@ else:
             Motor2.set_max_speed(STEPPER_MAX_SPEED)
             Motor2.set_acceleration(STEPPER_ACCELERATION)
             logger.info("Homing procedure complete and speed limits set")
-            app_state.current_mode = MotorMode.IDLE
+            app_state.gimbal_state = GimbalState.READY
             return True
         except Exception:
             logger.exception("Error during homing_procedure")
-            app_state.current_mode = MotorMode.HOMING_ERROR
+            app_state.gimbal_state = GimbalState.HOMING_ERROR
             return False
 
 

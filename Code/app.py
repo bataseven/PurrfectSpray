@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv(override=True)
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
-from app_state import app_state, MotorMode
+from app_state import app_state, GimbalState, ControlMode
 import joblib
 from app_utils import get_cpu_temp, register_shutdown
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
@@ -145,7 +145,7 @@ def on_connect():
     Motor2.enable_outputs()
     if app_state.viewer_count == 0:
         # Set the detector to the default model if None is set
-        if detector_name == "none" and app_state.current_mode != MotorMode.TRACKING:
+        if detector_name == "none" and app_state.control_mode != ControlMode.TRACKING:
             set_detector("openvino")
         if not laser_pin.value:
             threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
@@ -157,7 +157,7 @@ def on_connect():
     emit("target_updated", { "target": app_state.tracking_target })
     
     emit('motor_status', {
-        'mode': app_state.current_mode.value,
+        'mode': app_state.gimbal_state.value,
         'target': app_state.tracking_target
     })
 
@@ -180,7 +180,7 @@ def on_disconnect():
     if app_state.viewer_count == 0:
         app_state.target_lock.clear()
         # If the mode is not tracking and no viewers are connected set the detector to None
-        if app_state.current_mode != MotorMode.TRACKING:
+        if app_state.control_mode != ControlMode.TRACKING:
             set_detector(None)
             app_state.tracking_target = None
             socketio.emit('model_changed', {'status': 'disabled'})
@@ -269,7 +269,7 @@ def handle_change_model(data):
 
 @socketio.on('set_motor_mode')
 def handle_motor_control(data):
-    if not app_state.current_mode in {MotorMode.TRACKING, MotorMode.IDLE, MotorMode.FOLLOW}:
+    if not app_state.gimbal_state == GimbalState.READY:
         return
     
     global motor_active
@@ -277,33 +277,33 @@ def handle_motor_control(data):
     target_class = data.get('target')
     mode = data.get('mode')
     
-    app_state.current_mode = MotorMode(mode) if mode else app_state.current_mode
+    app_state.control_mode = ControlMode(mode) if mode else app_state.gimbal_state
     app_state.active_controller_sid = request.sid
 
-    if mode == MotorMode.TRACKING.value:
+    if mode == ControlMode.TRACKING.value:
         motor_active = True
         if target_class:
             app_state.tracking_target = target_class
         socketio.emit('motor_status', {
-            'mode': app_state.current_mode.value,
+            'mode': app_state.gimbal_state.value,
             'target': app_state.tracking_target,
             'sid': app_state.active_controller_sid
         })
 
-    elif mode == MotorMode.IDLE.value:
+    elif mode == ControlMode.MANUAL.value:
         motor_active = False
         # Set the latest target to None
         app_state.latest_target_coords = (None, None)
         socketio.emit('motor_status', {
-            'mode': app_state.current_mode.value,
+            'mode': app_state.gimbal_state.value,
             'sid': app_state.active_controller_sid
         })
         
-    elif mode == MotorMode.FOLLOW.value:
+    elif mode == ControlMode.FOLLOW.value:
         app_state.latest_target_coords = (None, None)
         motor_active = True
         socketio.emit('motor_status', {
-            'mode': app_state.current_mode.value,
+            'mode': app_state.gimbal_state.value,
             'sid': app_state.active_controller_sid
         })
        
@@ -413,7 +413,7 @@ def run_motor_loop():
             if motor_active and current_coords:
                 last_steps = perform_interpolated_movement(current_coords, last_steps)
 
-            if app_state.current_mode in {MotorMode.IDLE, MotorMode.FOLLOW, MotorMode.TRACKING}:
+            if app_state.gimbal_state == GimbalState.READY
                 Motor1.run()
                 Motor2.run()
             time.sleep(0.001)
@@ -429,7 +429,8 @@ def status_broadcast_loop():
                 'motor2': app_state.motor2_deg or 0.0,
                 'cpu_temp': get_cpu_temp(),
                 'laser': app_state.laser_on,
-                'current_mode': app_state.current_mode.value,
+                'control_mode': app_state.control_mode.value,
+                'gimbal_state': app_state.gimbal_state.value,
                 'sensor1': app_state.sensor1_triggered,
                 'sensor2': app_state.sensor2_triggered,
                 'gimbal_cpu_temp': app_state.gimbal_cpu_temp

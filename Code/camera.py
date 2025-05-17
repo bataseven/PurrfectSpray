@@ -10,7 +10,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from detectors import MobileNetDetector, YoloV5Detector, YoloV5VinoDetector, highlight_colors, ActiveObjectTracker, Detection
 import threading
-from app_state import app_state, MotorMode
+from app_state import app_state, GimbalState
 import zmq
 import base64
 import cv2
