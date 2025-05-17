@@ -25,20 +25,26 @@ STEPPER_ACCELERATION = 20000
 def normalize_angle(angle: float) -> float:
     """
     Wrap any angle (in degrees) into the range [-180, 180).
-    e.g. 350 -> -10, -190 -> 170
+    e.g. 350 -> -10,  -190 -> 170
     """
     return ((angle + 180) % 360) - 180
 
 
 def closest_equivalent_angle(target: float, current: float) -> float:
     """
-    Given a raw target angle and the current angle,
-    return the equivalent-to-target (i.e. ±360*k)
-    that lies closest to current.
+    Return the equivalent of 'target' (modulo 360) that lies closest
+    to 'current'. Result will differ from current by at most 180°.
     """
-    tgt = normalize_angle(target)
-    k = round((current - tgt) / 360.0)
-    return tgt + 360.0 * k
+    # 1) normalize both into [-180,180)
+    t = normalize_angle(target)
+    c = normalize_angle(current)
+
+    # 2) compute the signed difference and normalize it
+    delta = normalize_angle(t - c)
+
+    # 3) step from the normalized current by that delta
+    return c + delta
+
 
 # Remote vs Local mode
 USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
@@ -59,6 +65,7 @@ if USE_REMOTE_GIMBAL:
             current_deg = self._position * self.degrees_per_step
             target_deg = closest_equivalent_angle(raw_deg, current_deg)
             new_steps = int(round(target_deg / self.degrees_per_step))
+            print(f"raw: {raw_deg:.1f}, current: {current_deg:.1f}, target: {target_deg:.1f}, new_steps: {new_steps:.1f}")
             self._position = new_steps
             send_gimbal_command({
                 "cmd": "move",

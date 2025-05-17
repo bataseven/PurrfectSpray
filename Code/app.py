@@ -157,7 +157,7 @@ def on_connect():
     emit("target_updated", { "target": app_state.tracking_target })
     
     emit('motor_status', {
-        'mode': app_state.gimbal_state.value,
+        'control_mode': app_state.control_mode.value,
         'target': app_state.tracking_target
     })
 
@@ -285,7 +285,7 @@ def handle_motor_control(data):
         if target_class:
             app_state.tracking_target = target_class
         socketio.emit('motor_status', {
-            'mode': app_state.gimbal_state.value,
+            'control_mode': app_state.control_mode.value,
             'target': app_state.tracking_target,
             'sid': app_state.active_controller_sid
         })
@@ -295,7 +295,7 @@ def handle_motor_control(data):
         # Set the latest target to None
         app_state.latest_target_coords = (None, None)
         socketio.emit('motor_status', {
-            'mode': app_state.gimbal_state.value,
+            'control_mode': app_state.control_mode.value,
             'sid': app_state.active_controller_sid
         })
         
@@ -303,7 +303,7 @@ def handle_motor_control(data):
         app_state.latest_target_coords = (None, None)
         motor_active = True
         socketio.emit('motor_status', {
-            'mode': app_state.gimbal_state.value,
+            'control_mode': app_state.control_mode.value,
             'sid': app_state.active_controller_sid
         })
        
@@ -413,7 +413,7 @@ def run_motor_loop():
             if motor_active and current_coords:
                 last_steps = perform_interpolated_movement(current_coords, last_steps)
 
-            if app_state.gimbal_state == GimbalState.READY
+            if app_state.gimbal_state == GimbalState.READY:
                 Motor1.run()
                 Motor2.run()
             time.sleep(0.001)
