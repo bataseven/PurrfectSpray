@@ -16,7 +16,6 @@ GIMBAL_SUB_PORT   = int(os.getenv("GIMBAL_SUB_PORT", 5556))
 _LOST_THRESHOLD = 1.0
 
 # internal trackers:
-_prev_mode            = None
 _received_first_packet = False
 
 
@@ -48,45 +47,65 @@ def send_gimbal_command(command: dict) -> dict:
         sock.close()
 
 
+# gimbal_interface.py
+
+import time
+import threading
+import zmq
+
+from app_state import app_state, GimbalState
+
+USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
+GIMBAL_HOST       = os.getenv("GIMBAL_HOST", "127.0.0.1")
+GIMBAL_SUB_PORT   = int(os.getenv("GIMBAL_SUB_PORT", 5556))
+
+_LOST_THRESHOLD = 1.0  # seconds w/o telemetry ⇒ disconnected
+
+_prev_gimbal_state    = None
+_received_first_packet = False
+
+
 def update_gimbal_status_from_telemetry(status: dict):
     """
-    Maps 'mode'→MotorMode, treats IDLE as homing-done,
-    and writes all the other fields into app_state.
+    Pulls all numeric/sensor fields into app_state,
+    then maps the incoming 'mode' string into app_state.gimbal_state.
     """
     global _received_first_packet
 
-    # 1) Always update telemetry vars
-    app_state.motor1_deg      = status.get("motor1", 0.0)
-    app_state.motor2_deg      = status.get("motor2", 0.0)
-    app_state.laser_on        = status.get("laser", False)
+    # 1) Raw telemetry always updates
+    app_state.motor1_deg        = status.get("motor1", 0.0)
+    app_state.motor2_deg        = status.get("motor2", 0.0)
+    app_state.laser_on          = status.get("laser", False)
     app_state.sensor1_triggered = status.get("sensor1", False)
     app_state.sensor2_triggered = status.get("sensor2", False)
     app_state.gimbal_cpu_temp   = status.get("gimbal_cpu_temp", None)
 
-    # 2) Turn the incoming string into our Enum
-    mode_str = status.get("mode", GimbalState.UNKNOWN.value)
+    # 2) Map the incoming string to your new GimbalState enum
+    incoming_str = status.get("gimbal_state", None)
     try:
-        incoming = GimbalState(mode_str)
-    except ValueError:
-        incoming = GimbalState.UNKNOWN
+        incoming_state = GimbalState(incoming_str)
+    except Exception:
+        incoming_state = GimbalState.UNKNOWN
 
-    # 3) First ever packet?  Trust it blindly and mark “connected”
+    # 3) On the very first packet, trust it and clear DISCONNECTED
     if not _received_first_packet:
         _received_first_packet = True
-        app_state.gimbal_state = incoming
+        app_state.gimbal_state = incoming_state
 
-    # 4) Afterwards, only update if we’re not in a “disconnected” hold state
-    elif app_state.gimbal_state != GimbalState.GIMBAL_NOT_FOUND:
-        app_state.gimbal_state = incoming
-    print(app_state.gimbal_state)
+    # 4) On every subsequent packet, update the hardware state
+    else:
+        # any valid GimbalState will overwrite; 
+        # DISCONNECTED is handled in listen_for_telemetry
+        app_state.gimbal_state = incoming_state
+
 
 
 def listen_for_telemetry(callback):
     """
-    Spawns a SUB→POLL→recv_json thread that:
-     • on first packet      → clears GIMBAL_NOT_FOUND
-     • on > threshold silence → flips into GIMBAL_NOT_FOUND
-     • on return of packet   → restores previous mode & calls callback()
+    Spawns a thread that:
+      • on >_LOST_THRESHOLD of silence ⇒ sets DISCONNECTED
+      • on first packet or any packet after a drop ⇒ restores previous state,
+        then calls callback(msg) to do update_gimbal_status_from_telemetry(msg).
     """
     if not USE_REMOTE_GIMBAL:
         return
@@ -97,38 +116,40 @@ def listen_for_telemetry(callback):
     sock.setsockopt_string(zmq.SUBSCRIBE, "")
 
     def _worker():
-        global _prev_mode
+        global _prev_gimbal_state, _received_first_packet
+
         last_heard = None
 
         while not app_state.shutdown_event.is_set():
             try:
-                # wait up to 100 ms for a message
                 if sock.poll(timeout=100):
                     msg = sock.recv_json()
                     now = time.time()
 
-                    # 1st ever message or returning after a drop?
-                    if not _received_first_packet:
-                        # (recv flag set by callback)
+                    # 1st-ever or recovering from a drop?
+                    if last_heard is None:
+                        # first packet: will be handled by callback’s first-packet logic
                         pass
                     elif app_state.gimbal_state == GimbalState.GIMBAL_NOT_FOUND:
-                        # restore previous mode
-                        if _prev_mode is not None:
-                            app_state.gimbal_state = _prev_mode
-                            _prev_mode = None
+                        # restore the stashed hardware state
+                        if _prev_gimbal_state is not None:
+                            app_state.gimbal_state = _prev_gimbal_state
+                            _prev_gimbal_state = None
 
-                    last_heard = now
+                    # hand off to your updater
                     callback(msg)
 
+                    last_heard = now
+
                 else:
-                    # no data this cycle → have we connected once?
+                    # no data: check for a dropout
                     if last_heard is not None and (time.time() - last_heard) > _LOST_THRESHOLD:
-                        # stash the *first* lost cause
                         if app_state.gimbal_state != GimbalState.GIMBAL_NOT_FOUND:
-                            _prev_mode = app_state.gimbal_state
+                            _prev_gimbal_state = app_state.gimbal_state
                             app_state.gimbal_state = GimbalState.GIMBAL_NOT_FOUND
 
-                # loop around again
+                # tiny yield
+                time.sleep(0)
 
             except Exception as e:
                 if not app_state.shutdown_event.is_set():
@@ -139,3 +160,4 @@ def listen_for_telemetry(callback):
         ctx.term()
 
     threading.Thread(target=_worker, daemon=True).start()
+

@@ -1,6 +1,6 @@
 let isHomingComplete = false;
 let selectedTarget = "person"; // default selected target
-let currentMode = "idle"; // "idle", "follow", "tracking"
+let controlMode = "manual"; // "manual", "follow", "tracking"
 // let videoTip = null;
 let hasControl = false;
 let fadeTimeout = null;
@@ -189,36 +189,36 @@ document.addEventListener("DOMContentLoaded", function () {
         const nextMode =
             label.toLowerCase().includes("follow") ? "follow" :
                 label.toLowerCase().includes("tracking") ? "tracking" :
-                    "idle";
+                    "manual";
 
-        // 🛡️ Prevent overwriting active follow mode with Idle, unless we're truly canceling it
-        if (!force && nextMode === "idle" && currentMode === "follow") return;
+        // 🛡️ Prevent overwriting active follow mode with manual, unless we're truly canceling it
+        if (!force && nextMode === "manual" && controlMode === "follow") return;
 
         // Update visual + state
         modeIndicator.innerHTML = `<i class="fas ${icon}"></i> Mode: ${label}`;
         // Only remove the pulse class if the mode is changing
-        if (currentMode !== nextMode) {
+        if (controlMode !== nextMode) {
             modeIndicator.classList.remove("pulse");
             void modeIndicator.offsetWidth;
             modeIndicator.classList.add("pulse");
         }
-        currentMode = nextMode;
+        controlMode = nextMode;
     }
 
 
     // 🔁 Follow Mode Toggle
     followBtn.addEventListener("click", () => {
 
-        if (currentMode !== "follow") {
+        if (controlMode !== "follow") {
             // Start Follow Mode
             if (!isHomingComplete) {
-                socket.emit("set_motor_mode", { mode: "idle" });
+                socket.emit("set_motor_mode", { mode: "manual" });
             }
             socket.emit("set_motor_mode", { mode: "follow" });
             // Optional: throttle cursor update delay for first second
             lastSent = { x: null, y: null }; // reset cursor memory
         } else {
-            socket.emit("set_motor_mode", { mode: "idle" });
+            socket.emit("set_motor_mode", { mode: "manual" });
         }
     });
 
@@ -228,7 +228,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (isStarting) {
             socket.emit("set_motor_mode", { mode: "tracking", target: selectedTarget });
         } else {
-            socket.emit("set_motor_mode", { mode: "idle" });
+            socket.emit("set_motor_mode", { mode: "manual" });
         }
     });
 
@@ -244,12 +244,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // 🔁 Status Update from Server
     socket.on("status_update", data => {
-        // Check for homing only once
-        if (!isHomingComplete){
-            isHomingComplete = data.current_mode === "idle";
-            console.log(data.current_mode);
-        }
-        console.log("mode: ", data.current_mode);
+
+        isHomingComplete = data.gimbal_state === "ready";
+
+        console.log("mode: ", data.control_mode);
 
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
@@ -265,16 +263,16 @@ document.addEventListener("DOMContentLoaded", function () {
         laserStatus.className = 'status-value ' + (data.laser ? "On" : "Off");
 
         const homingStatus = document.getElementById("homing-status");
-        if (data.current_mode === "gimbal_not_found") {
+        if (data.gimbal_state === "gimbal_not_found") {
             homingStatus.textContent = "Gimbal Disconnected";
             homingStatus.className = "status-value Error";
-        } else if (data.current_mode === "homing_error") {
+        } else if (data.gimbal_state === "homing_error") {
             homingStatus.textContent = "Error Homing";
             homingStatus.className = "status-value Complete";
-        } else if (data.current_mode === "unknown") {
+        } else if (data.gimbal_state === "unknown") {
             homingStatus.textContent = "Unknown State";
             homingStatus.className = "status-value Error";
-        }else if (data.current_mode === "homing") {
+        }else if (data.gimbal_state === "homing") {
             homingStatus.textContent = "Homing...";
             homingStatus.className = "status-value InProgress";
         }else{
@@ -285,29 +283,29 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("sensor-status-1").textContent = data.sensor1 ? "Detected!" : "Not detected";
         document.getElementById("sensor-status-2").textContent = data.sensor2 ? "Detected!" : "Not detected";
 
-        trackBtn.disabled = data.current_mode === "gimbal_not_found" || data.current_mode === "homing_error" || data.current_mode === "unknown";
+        trackBtn.disabled = data.gimbal_state === "gimbal_not_found" || data.gimbal_state === "homing_error" || data.gimbal_state === "unknown";
     });
 
     // 🔁 Auto Mode Feedback
     socket.on("motor_status", data => {
         const statusEl = document.getElementById("motor-status");
         // Uppercase all letters of the status text
-        statusEl.textContent = data.mode.charAt(0).toUpperCase() + data.mode.slice(1);
-        statusEl.className = 'status-value ' + data.mode;
+        statusEl.textContent = data.control_mode.charAt(0).toUpperCase() + data.control_mode.slice(1);
+        statusEl.className = 'status-value ' + data.control_mode;
         selectedTarget = data.target || selectedTarget;
         const activeSid = data.sid;
         const isController = (activeSid === mySocketId);
 
-        if (data.mode !== currentMode) {
-            if (currentMode === "tracking") {
+        if (data.control_mode !== controlMode) {
+            if (controlMode === "tracking") {
                 showToast("Auto tracking disabled");
             }
-            else if (currentMode === "follow") {
+            else if (controlMode === "follow") {
                 showToast("Cursor follow disabled");
             }
-            else if (currentMode === "idle") {
+            else if (controlMode === "manual") {
             }
-            setMode(data.mode);
+            setMode(data.control_mode);
         }
         if (!isController && hasControl) {
             showToast("Another client took control.");
@@ -332,16 +330,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     function setMode(mode) {
-        currentMode = mode;
+        controlMode = mode;
 
         switch (mode) {
-            case "idle":
-                updateModeIndicator("Idle", "fa-circle", true);
+            case "manual":
+                updateModeIndicator("manual", "fa-circle", true);
                 followBtn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Start Cursor Follow';
                 trackBtn.innerHTML = '<i class="fas fa-play"></i> Start Auto Tracking';
                 modeIndicator.classList.remove("on");
                 modeIndicator.classList.add("off");
-                modeIndicator.innerHTML = '<i class="fas fa-circle"></i> Mode: Idle';
+                modeIndicator.innerHTML = '<i class="fas fa-circle"></i> Mode: manual';
                 break;
 
             case "follow":
@@ -462,10 +460,10 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        if (currentMode === "tracking") {
+        if (controlMode === "tracking") {
             if (now - lastClickTime < doubleClickThreshold) {
-                // Second click: switch to idle and emit click
-                socket.emit("set_motor_mode", { mode: "idle" });
+                // Second click: switch to manual and emit click
+                socket.emit("set_motor_mode", { mode: "manual" });
                 socket.emit("click_target", { x, y });
             } else {
                 // First click: just show toast
@@ -476,11 +474,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (!isHomingComplete) {
-            socket.emit("set_motor_mode", { mode: "idle" });
+            socket.emit("set_motor_mode", { mode: "manual" });
         }
 
-        if (currentMode === "follow") {
-            socket.emit("set_motor_mode", { mode: "idle" });
+        if (controlMode === "follow") {
+            socket.emit("set_motor_mode", { mode: "manual" });
         }
 
         socket.emit("click_target", { x, y });
@@ -541,7 +539,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // 🔁 Follow Mode Stream
     setInterval(() => {
-        if (!(currentMode === "follow") || !isHovering || mouseX === null || mouseY === null) return;
+        if (!(controlMode === "follow") || !isHovering || mouseX === null || mouseY === null) return;
         if (mouseX === lastSent.x && mouseY === lastSent.y) return;
         lastSent = { x: mouseX, y: mouseY };
         const { x, y } = scaleCoords(mouseX, mouseY);

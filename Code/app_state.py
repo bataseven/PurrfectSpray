@@ -10,8 +10,6 @@ class GimbalState(Enum):
     HOMING_ERROR = "homing_error"
     GIMBAL_NOT_FOUND = "gimbal_not_found"
     READY = "ready"
-    FOLLOW = "follow"
-    TRACKING = "tracking"
     UNKNOWN = "unknown"
     
 class ControlMode(Enum):

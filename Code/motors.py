@@ -52,7 +52,7 @@ if USE_REMOTE_GIMBAL:
             self._position = 0  # virtual position in steps
 
         def move_to(self, step_pos: int):
-            if not app_state.gimbal_state in {GimbalState.READY, GimbalState.TRACKING, GimbalState.FOLLOW}: 
+            if not app_state.gimbal_state == GimbalState.READY: 
                 logger.warning(f"[Remote] Ignoring move_to({step_pos}) in mode {app_state.gimbal_state}")
                 return
             raw_deg = step_pos * self.degrees_per_step

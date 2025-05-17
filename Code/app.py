@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv(override=True)
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
-from app_state import app_state, GimbalState
+from app_state import app_state, GimbalState, ControlMode
 import joblib
 from app_utils import get_cpu_temp, register_shutdown
 from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
@@ -269,7 +269,7 @@ def handle_change_model(data):
 
 @socketio.on('set_motor_mode')
 def handle_motor_control(data):
-    if not app_state.gimbal_state in {GimbalState.TRACKING, GimbalState.READY, GimbalState.FOLLOW}:
+    if not app_state.gimbal_state == GimbalState.READY:
         return
     
     global motor_active
@@ -277,10 +277,10 @@ def handle_motor_control(data):
     target_class = data.get('target')
     mode = data.get('mode')
     
-    app_state.gimbal_state = GimbalState(mode) if mode else app_state.gimbal_state
+    app_state.control_mode = ControlMode(mode) if mode else app_state.gimbal_state
     app_state.active_controller_sid = request.sid
 
-    if mode == GimbalState.TRACKING.value:
+    if mode == ControlMode.TRACKING.value:
         motor_active = True
         if target_class:
             app_state.tracking_target = target_class
@@ -290,7 +290,7 @@ def handle_motor_control(data):
             'sid': app_state.active_controller_sid
         })
 
-    elif mode == GimbalState.READY.value:
+    elif mode == ControlMode.MANUAL.value:
         motor_active = False
         # Set the latest target to None
         app_state.latest_target_coords = (None, None)
@@ -299,7 +299,7 @@ def handle_motor_control(data):
             'sid': app_state.active_controller_sid
         })
         
-    elif mode == GimbalState.FOLLOW.value:
+    elif mode == ControlMode.FOLLOW.value:
         app_state.latest_target_coords = (None, None)
         motor_active = True
         socketio.emit('motor_status', {
@@ -429,7 +429,8 @@ def status_broadcast_loop():
                 'motor2': app_state.motor2_deg or 0.0,
                 'cpu_temp': get_cpu_temp(),
                 'laser': app_state.laser_on,
-                'current_mode': app_state.gimbal_state.value,
+                'control_mode': app_state.control_mode.value,
+                'gimbal_state': app_state.gimbal_state.value,
                 'sensor1': app_state.sensor1_triggered,
                 'sensor2': app_state.sensor2_triggered,
                 'gimbal_cpu_temp': app_state.gimbal_cpu_temp
