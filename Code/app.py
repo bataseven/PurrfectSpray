@@ -145,7 +145,7 @@ def on_connect():
     Motor2.enable_outputs()
     if app_state.viewer_count == 0:
         # Set the detector to the default model if None is set
-        if detector_name == "none" and app_state.gimbal_state != GimbalState.TRACKING:
+        if detector_name == "none" and app_state.control_mode != ControlMode.TRACKING:
             set_detector("openvino")
         if not laser_pin.value:
             threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
@@ -180,7 +180,7 @@ def on_disconnect():
     if app_state.viewer_count == 0:
         app_state.target_lock.clear()
         # If the mode is not tracking and no viewers are connected set the detector to None
-        if app_state.gimbal_state != GimbalState.TRACKING:
+        if app_state.control_mode != ControlMode.TRACKING:
             set_detector(None)
             app_state.tracking_target = None
             socketio.emit('model_changed', {'status': 'disabled'})
@@ -413,7 +413,7 @@ def run_motor_loop():
             if motor_active and current_coords:
                 last_steps = perform_interpolated_movement(current_coords, last_steps)
 
-            if app_state.gimbal_state in {GimbalState.READY, GimbalState.FOLLOW, GimbalState.TRACKING}:
+            if app_state.gimbal_state == GimbalState.READY
                 Motor1.run()
                 Motor2.run()
             time.sleep(0.001)
