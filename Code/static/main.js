@@ -144,17 +144,17 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-function showSpinner(message = "Loading…") {
-  const spinner = document.getElementById("loading-spinner");
-  if (!spinner) return;
-  spinner.querySelector(".spinner-text").innerHTML = message;
-  spinner.style.display = "flex";
-}
+    function showSpinner(message = "Loading…") {
+        const spinner = document.getElementById("loading-spinner");
+        if (!spinner) return;
+        spinner.querySelector(".spinner-text").innerHTML = message;
+        spinner.style.display = "flex";
+    }
 
-function hideSpinner() {
-  const spinner = document.getElementById("loading-spinner");
-  if (spinner) spinner.style.display = "none";
-}
+    function hideSpinner() {
+        const spinner = document.getElementById("loading-spinner");
+        if (spinner) spinner.style.display = "none";
+    }
 
     setTimeout(() => {
         if (document.getElementById("video-feed").complete) {
@@ -399,9 +399,15 @@ function hideSpinner() {
     document.getElementById("video-feed").addEventListener("mouseenter", () => isHovering = true);
     document.getElementById("video-feed").addEventListener("mouseleave", () => isHovering = false);
     document.getElementById("video-feed").addEventListener("mousemove", event => {
-        const rect = event.target.getBoundingClientRect();
-        mouseX = Math.round(event.clientX - rect.left);
-        mouseY = Math.round(event.clientY - rect.top);
+        const rect = video.getBoundingClientRect();
+
+        // clamp inside the element
+        let nx = (event.clientX - rect.left) / rect.width;
+        let ny = (event.clientY - rect.top) / rect.height;
+        nx = Math.min(Math.max(0, nx), 1);
+        ny = Math.min(Math.max(0, ny), 1);
+
+        normPos = { x: nx, y: ny };
     });
 
     let fadeTimeout = null;
@@ -534,12 +540,17 @@ function hideSpinner() {
         };
     }
 
-    // 🔁 Follow Mode Stream
     setInterval(() => {
-        if (!(controlMode === "follow") || !isHovering || mouseX === null || mouseY === null) return;
-        if (mouseX === lastSent.x && mouseY === lastSent.y) return;
-        lastSent = { x: mouseX, y: mouseY };
-        const { x, y } = scaleCoords(mouseX, mouseY);
-        socket.emit("click_target", { x, y });
+        if (controlMode !== "follow" || !isHovering) return;
+
+        // convert once per tick
+        const px = Math.round(normPos.x * nativeWidth);
+        const py = Math.round(normPos.y * nativeHeight);
+
+        // skip if same as last
+        if (px === lastSent.x && py === lastSent.y) return;
+        lastSent = { x: px, y: py };
+
+        socket.emit("click_target", { x: px, y: py });
     }, 50);
 });
