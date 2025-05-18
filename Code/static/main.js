@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     let webrtcConnected = false;
+    let pc = null;
     let lastVideoTime = 0;
     let staleCounter = 0;
     const modeIndicator = document.getElementById("video-mode-indicator");
@@ -25,86 +26,95 @@ document.addEventListener("DOMContentLoaded", function () {
     const videoTip = document.getElementById("video-tip");
 
 
+
+    // keep your existing UI refs…
+    const video = document.getElementById("video-feed");
+    const spinner = document.getElementById("loading-spinner");
+
+    // 1) detect a stall, tear down old tracks, then reconnect
     setInterval(() => {
-        const video = document.getElementById("video-feed");
         if (!video || !video.srcObject) return;
-
-        const currentTime = video.currentTime;
-        const hasVideo = video.readyState >= 2;
-
-        if (hasVideo && currentTime === lastVideoTime) {
+        if (video.readyState >= 2 && video.currentTime === lastVideoTime) {
             staleCounter++;
-            if (staleCounter > 3) {  // ~5 seconds of no chiange
-                console.warn("[RTC] Stream appears to have stalled");
-                showSpinner("Reconnecting...");
+            if (staleCounter > 3) {
+                console.warn("[RTC] Stream stalled — reconnecting…");
+                // STOP and DROP old tracks immediately
+                video.srcObject.getTracks().forEach(t => t.stop());
+                video.srcObject = null;
+
                 webrtcConnected = false;
+                showSpinner("⚠️ Connection lost — reconnecting…");
                 startWebRTCWithRetry();
             }
         } else {
             staleCounter = 0;
-            lastVideoTime = currentTime;
+            lastVideoTime = video.currentTime;
         }
     }, 1500);
 
     let retryInProgress = false;
+
     async function startWebRTCWithRetry(timeoutMs = 10000) {
         if (retryInProgress) return;
         retryInProgress = true;
+        showSpinner("Video loading…");
 
-        const startTime = Date.now();
-        const video = document.getElementById("video-feed");
-        let attempts = 0;
-        webrtcConnected = false;
+        const deadline = Date.now() + timeoutMs;
+        let attempt = 0;
 
-        while (!webrtcConnected && Date.now() - startTime < timeoutMs) {
-            attempts++;
-            console.log(`[RTC] Attempt ${attempts} to connect...`);
+        while (!webrtcConnected && Date.now() < deadline) {
+            attempt++;
+            console.log(`[RTC] Attempt ${attempt} to connect…`);
             try {
                 await startWebRTC();
-                return;
+                break;
             } catch (err) {
-                console.warn("[RTC] Connection failed, retrying...", err);
-                await new Promise(res => setTimeout(res, 1000));
+                console.warn("[RTC] Offer/answer failed, will retry…", err);
+                // showSpinner(`Reconnect attempt ${attempt}…`);
+                await new Promise(r => setTimeout(r, 1000));
             }
         }
 
-        // Timeout fallback
-        showSpinner("⚠️ Video stream unavailable.<br>Please try refreshing.");
-        video.style.pointerEvents = "none";
+        if (!webrtcConnected) {
+            console.error("[RTC] All reconnect attempts failed");
+            showSpinner("⚠️ Video unavailable.<br>Try refreshing the page.");
+            video.style.pointerEvents = "none";
+        }
+
+        retryInProgress = false;
     }
 
 
     async function startWebRTC() {
         return new Promise(async (resolve, reject) => {
-            const pc = new RTCPeerConnection();
-            const video = document.getElementById("video-feed");
+            if (pc) {
+                try { pc.close() } catch { }
+                pc = null;
+            }
+
+            pc = new RTCPeerConnection();
+            webrtcConnected = false;
 
             pc.addTransceiver("video", { direction: "recvonly" });
-
-            pc.ontrack = (event) => {
+            pc.ontrack = e => {
                 console.log("[RTC] Video track received");
-                const stream = event.streams[0];
+                const [stream] = e.streams;
                 video.srcObject = stream;
 
                 video.onloadedmetadata = () => {
-                    video.play();
-                    video.style.display = "block";
-                    document.getElementById("loading-spinner").style.display = "none";
+                    video.play().catch(() => { });
+                    hideSpinner();
                     video.style.pointerEvents = "auto";
                     webrtcConnected = true;
                     console.log("[RTC] Video playback started");
-                    if (modeIndicator) modeIndicator.style.display = "block";
                     resolve();
-
-                    videoTip.classList.add("show");
-                    videoTip.classList.remove("hidden");
-
                 };
             };
 
             try {
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
+
                 const res = await fetch("/offer", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -113,49 +123,38 @@ document.addEventListener("DOMContentLoaded", function () {
                         type: pc.localDescription.type
                     })
                 });
-
                 if (!res.ok) throw new Error("Offer failed");
-                const answer = await res.json();
-                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                const { sdp, type } = await res.json();
+                await pc.setRemoteDescription(new RTCSessionDescription({ sdp, type }));
             } catch (err) {
                 reject(err);
             }
         });
     }
 
+
     startWebRTCWithRetry();
 
-
-    function showSpinner(message = "Loading...") {
-        const spinner = document.getElementById("loading-spinner");
-        if (spinner) {
-            spinner.style.display = "block";
-
-            const text = spinner.querySelector(".spinner-text");
-            if (text) text.textContent = message;
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            console.log("[RTC] Tab visible — reconnecting…");
+            webrtcConnected = false;
+            if (pc) { pc.close(); pc = null }
+            startWebRTCWithRetry();
         }
+    });
 
-        const video = document.getElementById("video-feed");
-        if (video) {
-            video.style.pointerEvents = "none";
-            video.style.display = "none";
-        }
-    }
+function showSpinner(message = "Loading…") {
+  const spinner = document.getElementById("loading-spinner");
+  if (!spinner) return;
+  spinner.querySelector(".spinner-text").innerHTML = message;
+  spinner.style.display = "flex";
+}
 
-    function hideSpinner() {
-        const spinner = document.getElementById("loading-spinner");
-        const video = document.getElementById("video-feed");
-
-        if (spinner) spinner.style.display = 'none';
-        if (video) video.style.display = 'inline';
-
-        if (modeIndicator) modeIndicator.style.display = 'block';
-
-
-        videoTip.classList.add("show");
-        videoTip.classList.remove("hidden");
-
-    }
+function hideSpinner() {
+  const spinner = document.getElementById("loading-spinner");
+  if (spinner) spinner.style.display = "none";
+}
 
     setTimeout(() => {
         if (document.getElementById("video-feed").complete) {
@@ -271,10 +270,10 @@ document.addEventListener("DOMContentLoaded", function () {
         } else if (data.gimbal_state === "unknown") {
             homingStatus.textContent = "Unknown State";
             homingStatus.className = "status-value Error";
-        }else if (data.gimbal_state === "homing") {
+        } else if (data.gimbal_state === "homing") {
             homingStatus.textContent = "Homing...";
             homingStatus.className = "status-value InProgress";
-        }else{
+        } else {
             homingStatus.textContent = "Running";
             homingStatus.className = "status-value Complete";
         }
@@ -524,7 +523,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const nativeWidth = 1920;
     const nativeHeight = 1080;
-    const video = document.getElementById("video-feed");
 
     function scaleCoords(x, y) {
         const rect = video.getBoundingClientRect();
