@@ -247,7 +247,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         isHomingComplete = data.gimbal_state === "ready";
 
-        console.log("mode: ", data.control_mode);
 
         document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
         document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
