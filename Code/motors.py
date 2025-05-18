@@ -65,7 +65,6 @@ if USE_REMOTE_GIMBAL:
             current_deg = self._position * self.degrees_per_step
             target_deg = closest_equivalent_angle(raw_deg, current_deg)
             new_steps = int(round(target_deg / self.degrees_per_step))
-            print(f"raw: {raw_deg:.1f}, current: {current_deg:.1f}, target: {target_deg:.1f}, new_steps: {new_steps:.1f}")
             self._position = new_steps
             send_gimbal_command({
                 "cmd": "move",
