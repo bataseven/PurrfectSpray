@@ -72,7 +72,6 @@ def capture_and_process():
             logger.exception("Exception in capture_and_process()")
             time.sleep(2)  # slow down if camera fails
 
-
 def generate_frames():
     while True:
         with frame_lock:
@@ -86,40 +85,44 @@ def generate_frames():
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
         h, s, v = cv2.split(hsv)
 
+        # Contrast boost
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         v_clahe = clahe.apply(v)
         hsv = cv2.merge((h, s, v_clahe))
+
         gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
+
+        # LAB conversion for red verification
+        lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2LAB)
+        _, A, _ = cv2.split(lab)
 
         # Red detection thresholds
         lower_red1 = np.array([0, 100, 180])
         upper_red1 = np.array([10, 255, 255])
         lower_red2 = np.array([160, 100, 180])
         upper_red2 = np.array([180, 255, 255])
+
         mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
         mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
         red_mask = cv2.bitwise_or(mask1, mask2)
 
         bright_mask = cv2.inRange(gray, 200, 255)
-        # final_mask = cv2.bitwise_and(red_mask, bright_mask)
         final_mask = red_mask.copy()
         final_mask = cv2.dilate(final_mask, None, iterations=2)
 
-        # Contour detection
         contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        print(len(contours))
+        print("Contours:", len(contours))
 
-        # Overlay detections
+        candidates = []
+
         for i, cnt in enumerate(contours):
             area = cv2.contourArea(cnt)
-            print("Area: ", area)
-            if area < 1:
+            print(area)
+            if area < 250 or area > 2000:
                 continue
 
             perimeter = cv2.arcLength(cnt, True)
             circularity = 4 * np.pi * area / (perimeter ** 2 + 1e-5)
-            print("circularity: ", circularity)
-            
             if circularity < 0.4:
                 continue
 
@@ -130,17 +133,45 @@ def generate_frames():
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
 
-            color = (0, 255, 255) if (cx, cy) == app_state.last_laser_pixel else (255, 0, 255)
-            cv2.circle(frame, (cx, cy), 8, color, 2)
-            cv2.putText(frame, f"Dot {i+1}", (cx + 10, cy - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            if cy >= A.shape[0] or cx >= A.shape[1]:
+                continue
+            a_val = A[cy, cx]
+            if a_val < 100:
+                continue
 
-        # Encode and stream
+            candidates.append({
+                'cnt': cnt,
+                'cx': cx,
+                'cy': cy,
+                'area': area,
+                'circularity': circularity,
+                'a_val': a_val
+            })
+
+        if candidates:
+            # Sort: circularity DESC, area ASC
+            candidates.sort(key=lambda c: (-c['circularity'], c['area']))
+            best = candidates[0]
+            cx, cy = best['cx'], best['cy']
+            app_state.last_laser_pixel = (cx, cy)
+
+            # Draw all candidates
+            for i, cand in enumerate(candidates):
+                color = (0, 255, 0) if (cand['cx'], cand['cy']) == (cx, cy) else (255, 0, 255)
+                cv2.circle(frame, (cand['cx'], cand['cy']), 8, color, 2)
+                cv2.putText(frame, f"Dot {i+1}", (cand['cx'] + 10, cand['cy'] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        else:
+            app_state.last_laser_pixel = None
+
         ret, buffer = cv2.imencode('.jpg', frame)
         if not ret:
             continue
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+
+
+
 
 @app.route('/')
 def index():
@@ -243,11 +274,16 @@ def set_angles():
 
 @app.route('/record_point', methods=['POST'])
 def record_point():
-   # grab the last‐detected laser dot
-    pixel = app_state.last_laser_pixel
-    if not pixel:
+    # Wait up to 1 second for the detection to update
+    timeout = time.time() + 1.0
+    while app_state.last_laser_pixel is None and time.time() < timeout:
+        time.sleep(0.05)  # check every 50ms
+
+    if app_state.last_laser_pixel is None:
         return jsonify({'error': 'No laser dot detected'}), 400
-    x, y = pixel
+
+    x, y = app_state.last_laser_pixel
+
     # Read angles from actual motor positions
     angle1 = Motor1.current_position() * DEGREES_PER_STEP_1
     angle2 = Motor2.current_position() * DEGREES_PER_STEP_2

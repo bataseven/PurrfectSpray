@@ -46,6 +46,20 @@
 
   <div id="status">Homing motors...</div>
 
+  <div id="toast" style="
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0,0,0,0.8);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  display: none;
+  z-index: 1000;
+">Toast Message</div>
+
   <script>
     let autoCalibrating = false;
     const theta1 = document.getElementById('theta1');
@@ -133,6 +147,15 @@
         });
     }
 
+    function showToast(message, duration = 2000) {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.style.display = "block";
+  setTimeout(() => {
+    toast.style.display = "none";
+  }, duration);
+}
+
     function setSliderPosition(t1, t2) {
       document.getElementById("theta1").value = t1;
       document.getElementById("theta2").value = t2;
@@ -158,7 +181,7 @@
           if (data.error) {
             return alert("Error: " + data.error);
           }
-          alert("Point recorded successfully!");
+          showToast("Point recorded successfully!");
         })
         .catch(err => {
           console.error("recordPoint failed:", err);
@@ -199,7 +222,6 @@
       fetch('/toggle_laser')
         .then(r => r.json())
         .then(data => {
-          alert("Laser is now " + data.status);
         });
     }
 
