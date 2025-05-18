@@ -81,35 +81,66 @@ def generate_frames():
                 continue
             frame = latest_frame.copy()
 
-        # 🔍 Convert to HSV
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Preprocess frame
+        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
 
-        # 🎯 Define red thresholds
-        lower_red1 = np.array([0, 120, 200])
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        v_clahe = clahe.apply(v)
+        hsv = cv2.merge((h, s, v_clahe))
+        gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
+
+        # Red detection thresholds
+        lower_red1 = np.array([0, 100, 180])
         upper_red1 = np.array([10, 255, 255])
-        lower_red2 = np.array([160, 120, 200])
+        lower_red2 = np.array([160, 100, 180])
         upper_red2 = np.array([180, 255, 255])
-
-        # 🟥 Get red mask
         mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
         mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
         red_mask = cv2.bitwise_or(mask1, mask2)
 
-        # 🔧 Optional: apply dilation to make red blobs more visible
-        red_mask = cv2.dilate(red_mask, None, iterations=2)
+        bright_mask = cv2.inRange(gray, 200, 255)
+        # final_mask = cv2.bitwise_and(red_mask, bright_mask)
+        final_mask = red_mask.copy()
+        final_mask = cv2.dilate(final_mask, None, iterations=2)
 
-        green_overlay = cv2.merge([np.zeros_like(red_mask), red_mask, np.zeros_like(red_mask)])
+        # Contour detection
+        contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        print(len(contours))
 
-        # 🧠 Overlay the mask with transparency
-        overlayed = cv2.addWeighted(frame, 1.0, green_overlay, 1, 0)
+        # Overlay detections
+        for i, cnt in enumerate(contours):
+            area = cv2.contourArea(cnt)
+            print("Area: ", area)
+            if area < 1:
+                continue
 
-        # 🧃 Encode and stream
-        ret, buffer = cv2.imencode('.jpg', overlayed)
+            perimeter = cv2.arcLength(cnt, True)
+            circularity = 4 * np.pi * area / (perimeter ** 2 + 1e-5)
+            print("circularity: ", circularity)
+            
+            if circularity < 0.4:
+                continue
+
+            M = cv2.moments(cnt)
+            if M["m00"] == 0:
+                continue
+
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+
+            color = (0, 255, 255) if (cx, cy) == app_state.last_laser_pixel else (255, 0, 255)
+            cv2.circle(frame, (cx, cy), 8, color, 2)
+            cv2.putText(frame, f"Dot {i+1}", (cx + 10, cy - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+        # Encode and stream
+        ret, buffer = cv2.imencode('.jpg', frame)
         if not ret:
             continue
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-        
 
 @app.route('/')
 def index():
@@ -286,31 +317,63 @@ def detect_laser_dot():
                 continue
             frame = latest_frame.copy()
 
-        # Convert to HSV and threshold red regions
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-        # Red has two ranges in HSV
-        lower_red1 = np.array([0, 120, 200])
+        # Define red color thresholds in HSV
+        lower_red1 = np.array([0, 120, 250])
         upper_red1 = np.array([10, 255, 255])
-        lower_red2 = np.array([160, 120, 200])
+        lower_red2 = np.array([160, 120, 250])
         upper_red2 = np.array([180, 255, 255])
 
+        # Threshold red regions
         mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
         mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        mask = cv2.bitwise_or(mask1, mask2)
+        red_mask = cv2.bitwise_or(mask1, mask2)
 
-        # Find contours and get the largest red blob (laser)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if contours:
-            largest = max(contours, key=cv2.contourArea)
-            M = cv2.moments(largest)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                # print(f"[Laser] Detected red dot at ({cx}, {cy})")
-                # You can now collect (cx, cy) with the current motor angles for calibration
-                app_state.last_laser_pixel = (cx, cy)
+        # Apply optional brightness filter using grayscale
+        gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
+        bright_mask = cv2.inRange(gray, 250, 255)
+        final_mask = cv2.bitwise_and(red_mask, bright_mask)
+
+        # Morphological cleanup (optional)
+        final_mask = cv2.dilate(final_mask, None, iterations=2)
+
+        # Find contours
+        contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        detected = False
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            print(area)
+            if area > 100:
+                continue  # filter by size
+
+            perimeter = cv2.arcLength(cnt, True)
+            circularity = 4 * np.pi * area / (perimeter ** 2 + 1e-5)
+            if circularity < 0.8:
+                continue  # filter non-circular shapes
+
+            # Compute center of the blob
+            M = cv2.moments(cnt)
+            if M["m00"] == 0:
+                continue
+
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+            app_state.last_laser_pixel = (cx, cy)
+            detected = True
+
+            # Optional: draw circle for visual confirmation
+            cv2.circle(frame, (cx, cy), 5, (0, 255, 0), 2)
+            break  # only use best one
+
+        if not detected:
+            app_state.last_laser_pixel = None
+
         time.sleep(0.1)
+
 
 
 def motor_loop():

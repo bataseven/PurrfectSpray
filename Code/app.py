@@ -192,11 +192,6 @@ def on_disconnect():
         if laser_pin.value:
             threading.Thread(target=lambda: laser_pin.off(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'Off'})
-    elif app_state.viewer_count == 1:
-        # If only one viewer is left, turn on the laser
-        if not laser_pin.value:
-            threading.Thread(target=lambda: laser_pin.on(), daemon=True).start()
-            socketio.emit('laser_status', {'status': 'On'})
         
 
 @socketio.on('click_target')
