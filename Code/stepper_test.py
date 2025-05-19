@@ -33,6 +33,9 @@ def loop():
 		Motor1.move_to(0)
 	if Motor2.current_position() == 200:
 		Motor2.move_to(0)
+		Motor1.disable_outputs()
+		Motor2.disable_outputs()
+		time.sleep(2)
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ os.environ["USE_REMOTE_GIMBAL"] = "False"
 
 from app_utils import graceful_exit, register_shutdown, get_cpu_temp
 from motors import Motor1, Motor2, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2, homing_procedure
-from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2
+from hardware import laser_pin, water_gun_pin, hall_sensor_1, hall_sensor_2, enable_pin_1, enable_pin_2
 from app_state import app_state, GimbalState
 
 
@@ -100,15 +100,20 @@ def handle_command(rep_socket: zmq.Socket):
                 "sensor2": not hall_sensor_2.value
             })
 
-        elif cmd == "enable":
-            motor = message.get("motor")
-            (Motor1 if motor == 1 else Motor2).enable_outputs()
+        elif cmd == "enable1":
+            if not app_state.gimbal_state==GimbalState.READY:
+                rep_socket.send_json({"error": "Can't use enable function while the gimbal is not ready"})
+                return
+            enable_pin_1.off() if message.get("on") else enable_pin_1.on()
             rep_socket.send_json({"status": "ok"})
             
-        elif cmd == "disable":
-            motor = message.get("motor")
-            (Motor1 if motor == 1 else Motor2).disable_outputs()
+        elif cmd == "enable2":
+            if not app_state.gimbal_state==GimbalState.READY:
+                rep_socket.send_json({"error": "Can't use enable function while the gimbal is not ready"})
+                return
+            enable_pin_2.off() if message.get("on") else enable_pin_2.on()
             rep_socket.send_json({"status": "ok"})
+            
             
         else:
             rep_socket.send_json({"error": "Unknown command"})
