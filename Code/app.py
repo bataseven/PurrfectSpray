@@ -7,7 +7,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, U
 from app_state import app_state, GimbalState, ControlMode
 import joblib
 from app_utils import get_cpu_temp, register_shutdown
-from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2
+from hardware import laser_pin, water_gun_pin, fan_pin, hall_sensor_1, hall_sensor_2, enable_pin_1, enable_pin_2
 from motors import Motor1, Motor2, homing_procedure, DEGREES_PER_STEP_1, DEGREES_PER_STEP_2
 from camera import capture_and_process, detect_in_background, stream_frames_over_zmq, set_detector
 from flask_socketio import SocketIO, emit
@@ -141,8 +141,8 @@ def offer_proxy():
 
 @socketio.on('connect')
 def on_connect():
-    Motor1.enable_outputs()
-    Motor2.enable_outputs()
+    enable_pin_1.on()
+    enable_pin_2.on()
     if app_state.viewer_count == 0:
         # Set the detector to the default model if None is set
         if detector_name == "none" and app_state.control_mode != ControlMode.TRACKING:
@@ -185,8 +185,8 @@ def on_disconnect():
             app_state.tracking_target = None
             socketio.emit('model_changed', {'status': 'disabled'})
             # Disable the motors
-            Motor1.disable_outputs()
-            Motor2.disable_outputs()
+            enable_pin_1.off()
+            enable_pin_2.off()
         
         # Turn off the laser if no viewers are connected
         if laser_pin.value:
