@@ -53,6 +53,7 @@ class AppState:
         self.water_gun_active = False
         
         self.shutdown_event = threading.Event()
+        self.home_requested = False
         
         # ZMQ telemetry
         self.gimbal_status = {}

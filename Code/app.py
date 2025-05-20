@@ -21,6 +21,9 @@ import json
 import cv2 
 import numpy as np
 from gimbal_client import listen_for_telemetry, update_gimbal_status_from_telemetry
+from motors import request_home as local_request_home
+from gimbal_client import request_home as remote_request_home
+
 
 detector_name = "none"
 
@@ -193,6 +196,15 @@ def on_disconnect():
             threading.Thread(target=lambda: laser_pin.off(), daemon=True).start()
             socketio.emit('laser_status', {'status': 'Off'})
         
+
+@socketio.on("request_home")
+def handle_request_home():
+    # always fire both; each module internally
+    # no-ops if not applicable
+    local_request_home()
+    resp = remote_request_home()
+    emit("home_ack", {"status": "started", "remote": resp})
+
 
 @socketio.on('click_target')
 def handle_click_target(data):

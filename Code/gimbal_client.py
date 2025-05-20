@@ -7,6 +7,7 @@ import zmq
 
 from app_state import app_state, GimbalState
 
+
 USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
 GIMBAL_HOST       = os.getenv("GIMBAL_HOST", "127.0.0.1")
 GIMBAL_PORT       = int(os.getenv("GIMBAL_PORT",     5555))
@@ -17,6 +18,7 @@ _LOST_THRESHOLD = 1.0
 
 # internal trackers:
 _received_first_packet = False
+_prev_gimbal_state    = None
 
 
 def send_gimbal_command(command: dict) -> dict:
@@ -47,22 +49,14 @@ def send_gimbal_command(command: dict) -> dict:
         sock.close()
 
 
-# gimbal_interface.py
+def request_home() -> dict:
+    """
+    In remote mode, send a 'home' command to the Gimbal Pi.
+    In local mode, does nothing.
+    """
+    # send_gimbal_command already no-ops when USE_REMOTE_GIMBAL is False
+    return send_gimbal_command({"cmd": "home"})
 
-import time
-import threading
-import zmq
-
-from app_state import app_state, GimbalState
-
-USE_REMOTE_GIMBAL = os.getenv("USE_REMOTE_GIMBAL", "False") == "True"
-GIMBAL_HOST       = os.getenv("GIMBAL_HOST", "127.0.0.1")
-GIMBAL_SUB_PORT   = int(os.getenv("GIMBAL_SUB_PORT", 5556))
-
-_LOST_THRESHOLD = 1.0  # seconds w/o telemetry ⇒ disconnected
-
-_prev_gimbal_state    = None
-_received_first_packet = False
 
 
 def update_gimbal_status_from_telemetry(status: dict):
@@ -79,6 +73,7 @@ def update_gimbal_status_from_telemetry(status: dict):
     app_state.sensor1_triggered = status.get("sensor1", False)
     app_state.sensor2_triggered = status.get("sensor2", False)
     app_state.gimbal_cpu_temp   = status.get("gimbal_cpu_temp", None)
+    app_state.home_requested    = status.get("home_requested", False)
 
     # 2) Map the incoming string to your new GimbalState enum
     incoming_str = status.get("gimbal_state", None)

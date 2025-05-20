@@ -2,6 +2,7 @@ import os
 import time
 import math
 import logging
+import threading
 from AccelStepper import AccelStepper, DRIVER
 from hardware import hall_sensor_1, hall_sensor_2
 from app_state import app_state, GimbalState
@@ -215,3 +216,11 @@ def home_motor(motor: AccelStepper, hall_sensor, motor_num: int):
 
     motor.set_current_position(0)
     motor.disable_outputs()
+
+def request_home():
+    """
+    Spawn a local homing cycle on the Pi that runs in its own thread.
+    Keeps run_motor_loop paused until homing_procedure completes
+    by virtue of app_state.gimbal_state == GimbalState.HOMING.
+    """
+    threading.Thread(target=homing_procedure, daemon=True).start()

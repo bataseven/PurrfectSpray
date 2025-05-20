@@ -113,7 +113,10 @@ def handle_command(rep_socket: zmq.Socket):
                 return
             enable_pin_2.off() if message.get("on") else enable_pin_2.on()
             rep_socket.send_json({"status": "ok"})
-            
+        
+        elif cmd == "home":
+            threading.Thread(target=homing_procedure, daemon=True).start()
+            rep_socket.send_json({"status": "homing_started"})
             
         else:
             rep_socket.send_json({"error": "Unknown command"})

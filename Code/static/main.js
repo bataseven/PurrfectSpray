@@ -504,6 +504,14 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
+    const homeBtn = document.getElementById("home-btn");
+    homeBtn.addEventListener("click", () => {
+        socket.emit("request_home");
+    });
+    socket.on("home_ack", () => {
+        showToast("Homing started…");
+    });
+
     document.querySelectorAll(".target-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".target-btn").forEach(b => b.classList.remove("selected"));
