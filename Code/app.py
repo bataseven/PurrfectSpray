@@ -201,6 +201,10 @@ def on_disconnect():
 def handle_request_home():
     # always fire both; each module internally
     # no-ops if not applicable
+    if not app_state.gimbal_state == GimbalState.READY:
+        emit("home_ack", {"status": "Can't home while not ready"})
+        return
+    
     local_request_home()
     resp = remote_request_home()
     emit("home_ack", {"status": "started", "remote": resp})

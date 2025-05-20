@@ -508,8 +508,22 @@ document.addEventListener("DOMContentLoaded", function () {
     homeBtn.addEventListener("click", () => {
         socket.emit("request_home");
     });
-    socket.on("home_ack", () => {
-        showToast("Homing started…");
+    
+    socket.on("home_ack", (data) => {
+    // If the overall status isn’t "started", show it as an error/message
+    if (data.status !== "started") {
+        showToast(data.status);
+        return;
+    }
+
+    // If there’s a remote error, show that instead of the generic message
+    if (data.remote && data.remote.error) {
+        showToast(`Remote homing failed: ${data.remote.error}`);
+        return;
+    }
+
+    // Only now show the success toast
+    showToast("Homing started…");
     });
 
     document.querySelectorAll(".target-btn").forEach(btn => {
