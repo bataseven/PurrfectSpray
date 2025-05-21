@@ -116,7 +116,7 @@ def handle_command(rep_socket: zmq.Socket):
         
         elif cmd == "home":
             threading.Thread(target=homing_procedure, daemon=True).start()
-            rep_socket.send_json({"status": "homing_started"})
+            rep_socket.send_json({"status": "homing started" if app_state.home_requested else "homing already in progress"})
             
         else:
             rep_socket.send_json({"error": "Unknown command"})

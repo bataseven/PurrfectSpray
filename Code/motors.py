@@ -126,7 +126,11 @@ else:
     Motor2.set_acceleration(STEPPER_ACCELERATION)
 
     def homing_procedure():
+        if app_state.home_requested:
+            logger.info("Homing procedure already in progress")
+            return False
         try:
+            app_state.home_requested = True
             app_state.gimbal_state = GimbalState.HOMING
             home_motor(Motor1, hall_sensor_1, 1)
             home_motor(Motor2, hall_sensor_2, 2)
@@ -136,10 +140,12 @@ else:
             Motor2.set_acceleration(STEPPER_ACCELERATION)
             logger.info("Homing procedure complete and speed limits set")
             app_state.gimbal_state = GimbalState.READY
+            app_state.home_requested = False
             return True
         except Exception:
             logger.exception("Error during homing_procedure")
             app_state.gimbal_state = GimbalState.HOMING_ERROR
+            app_state.home_requested = False
             return False
 
 
