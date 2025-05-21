@@ -8,7 +8,7 @@ let fadeTimeout = null;
 document.addEventListener("DOMContentLoaded", function () {
     const socket = io();
     const targetPositions = { 1: 0, 2: 0 };
-    mouseX = null, mouseY = null, isHovering = false, lastSent = { x: null, y: null };
+    mouseX = null, mouseY = null, isHovering = false, lastSent = { x: null, y: null }, normPos = { x: null, y: null };;
 
     let mySocketId = null;
     socket.on("connect", () => {
@@ -399,15 +399,18 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("video-feed").addEventListener("mouseenter", () => isHovering = true);
     document.getElementById("video-feed").addEventListener("mouseleave", () => isHovering = false);
     document.getElementById("video-feed").addEventListener("mousemove", event => {
-        const rect = video.getBoundingClientRect();
+        const renderedWidth = rect.width;
+        const renderedHeight = rect.height;
+        const nativeWidth = 1920;
+        const nativeHeight = 1080;
+        const scaleX = nativeWidth / renderedWidth;
+        const scaleY = nativeHeight / renderedHeight;
+        const x = Math.round((event.clientX - rect.left) * scaleX);
+        const y = Math.round((event.clientY - rect.top) * scaleY);
+        
 
-        // clamp inside the element
-        let nx = (event.clientX - rect.left) / rect.width;
-        let ny = (event.clientY - rect.top) / rect.height;
-        nx = Math.min(Math.max(0, nx), 1);
-        ny = Math.min(Math.max(0, ny), 1);
 
-        normPos = { x: nx, y: ny };
+        normPos = { x: x, y: y };
     });
 
     let fadeTimeout = null;
@@ -441,16 +444,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     let lastClickTime = 0;
+    const rect = document.getElementById("video-feed").getBoundingClientRect();
 
     document.getElementById("video-feed").addEventListener("click", function (event) {
         fadeOutVideoTipAfterDelay(1000);
 
         const now = Date.now();
-        const doubleClickThreshold = 1500; // ms
-
-        const rect = this.getBoundingClientRect();
+        const doubleClickThreshold = 1500; // ms        
         const renderedWidth = rect.width;
-        const renderedHeight = rect.height;
+        const renderedHeight = rect.height; 
         const nativeWidth = 1920;
         const nativeHeight = 1080;
         const scaleX = nativeWidth / renderedWidth;
@@ -549,30 +551,16 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 
-    const nativeWidth = 1920;
-    const nativeHeight = 1080;
-
-    function scaleCoords(x, y) {
-        const rect = video.getBoundingClientRect();
-        const scaleX = nativeWidth / rect.width;
-        const scaleY = nativeHeight / rect.height;
-        return {
-            x: Math.round(x * scaleX),
-            y: Math.round(y * scaleY)
-        };
-    }
 
     setInterval(() => {
         if (controlMode !== "follow" || !isHovering) return;
-
-        // convert once per tick
-        const px = Math.round(normPos.x * nativeWidth);
-        const py = Math.round(normPos.y * nativeHeight);
+        
+        
 
         // skip if same as last
-        if (px === lastSent.x && py === lastSent.y) return;
-        lastSent = { x: px, y: py };
+        if (normPos.x === lastSent.x && normPos.y === lastSent.y) return;
+        lastSent = { x: normPos.x, y: normPos.y };
 
-        socket.emit("click_target", { x: px, y: py });
+        socket.emit("click_target", { x: normPos.x, y: normPos.y });
     }, 50);
 });
