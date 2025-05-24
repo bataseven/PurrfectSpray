@@ -8,7 +8,12 @@ from picamera2 import Picamera2
 import time
 import logging
 from logging.handlers import RotatingFileHandler
-from detectors import MobileNetDetector, YoloV5Detector, YoloV5VinoDetector, highlight_colors, ActiveObjectTracker, Detection
+from detectors import highlight_colors, Detection
+from detectors import MobileNetDetector
+from detectors import YoloV5Detector
+from detectors import YoloV5VinoDetector
+from detectors import YoloV8SegDetector
+from detectors import YoloV8OpenVINOSegDetector
 import threading
 from app_state import app_state, GimbalState
 import zmq
@@ -51,8 +56,12 @@ except Exception as e:
 
 detector = None
 
-xml = os.path.expanduser(
+yolov5_xml = os.path.expanduser(
     "~/Desktop/PurrfectSpray/Code/models/openvino_model/yolov5n.xml"
+)
+
+yolov8_xml = os.path.expanduser(
+    "~/Desktop/PurrfectSpray/Code/models/yolov8n-seg_openvino_model/yolov8n-seg.xml"
 )
 frame_lock = Lock()
 frame_available = Event()
@@ -199,8 +208,15 @@ def set_detector(model_name):
             detector = YoloV5Detector(model_name='yolov5n', conf_threshold=0.3, size=1280)
             logger.info("Using YOLOv5n detector")
         elif model_name == 'openvino':
-            detector = YoloV5VinoDetector(xml_path=xml, conf_threshold=0.3)
+            detector = YoloV5VinoDetector(xml_path=yolov5_xml, conf_threshold=0.3)
             logger.info("Using OpenVINO YOLOv5 detector")
+        elif model_name == 'yolov8seg':
+            detector = YoloV8SegDetector(model_path="yolov8n-seg.pt", conf_threshold=0.3)
+            logger.info("Using YOLOv8 segmentation detector")
+        elif model_name == "yolov8openvino":
+            print("Starting YOLOv8 OpenVINO segmentation detector")
+            detector = YoloV8OpenVINOSegDetector(xml_path=yolov8_xml, conf_threshold=0.3)
+            logger.info("Using YOLOv8 OpenVINO segmentation detector")    
         else:
             raise ValueError(f"Unknown model: {model_name}")
         
@@ -226,7 +242,11 @@ def detect_in_background():
             with detector_lock:
                 if detector:
                     t0 = time.perf_counter()
-                    dets = tiled_detect(frame, detector, tile_size=(1280,1280), overlap=200)
+                    if isinstance(detector, YoloV8SegDetector) or isinstance(detector, YoloV8OpenVINOSegDetector):
+                        dets = detector.detect(frame, overlay=True)
+                    else:
+                        dets = tiled_detect(frame, detector, tile_size=(1280,1280), overlap=200)
+    
                     infer_ms = (time.perf_counter() - t0)*1e3
                 else:
                     dets, infer_ms = [], 0.0
@@ -288,9 +308,13 @@ def detect_in_background():
                 app_state.target_lock.clear()
 
             # 9) (optional) timing log
-            # loop_ms = (time.perf_counter() - loop_start)*1e3
-            # fps = 1000.0/loop_ms if loop_ms>0 else float('inf')
+            loop_ms = (time.perf_counter() - loop_start)*1e3
+            fps = 1000.0/loop_ms if loop_ms>0 else float('inf')
             # logger.info(f"Infer {infer_ms:.1f}ms, loop {loop_ms:.1f}ms, FPS {fps:.1f}")
+            # # Print confidence and box for each tracked object
+            # for obj in tracked_objs:
+            #     logger.info(f"Track ID {obj['id']}, Label: {obj['label']}, "
+            #                 f"Confidence: {obj['conf']:.2f}, Box: {obj['box']}")
 
         except Exception:
             logger.exception("Exception in detect_in_background")

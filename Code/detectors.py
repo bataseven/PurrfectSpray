@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import torch
 from openvino.runtime import Core
+from ultralytics import YOLO
 
 highlight_colors = [
     (255, 99, 71),     # Tomato
@@ -308,3 +309,125 @@ class YoloV5VinoDetector(BaseDetector):
                 )
 
         return results
+    
+    
+class YoloV8SegDetector(BaseDetector):
+    def __init__(self, model_path='yolov8n-seg.pt', conf_threshold=0.5):
+        self.model = YOLO(model_path)
+        self.model.conf = conf_threshold
+        self.model.task = 'segment'
+        self.model.eval()
+
+    def detect(self, frame, overlay=True):
+        results = self.model.predict(source=frame, verbose=False)[0]
+        output = []
+
+        h, w = frame.shape[:2]
+
+        if results.boxes is None or results.masks is None:
+            return []
+
+        boxes = results.boxes.xyxy.cpu().numpy()
+        confs = results.boxes.conf.cpu().numpy()
+        clses = results.boxes.cls.cpu().numpy().astype(int)
+        masks = results.masks.data.cpu().numpy()
+
+        for i in range(len(boxes)):
+            x1, y1, x2, y2 = boxes[i].astype(int)
+            conf = float(confs[i])
+            cls_id = clses[i]
+            label = self.model.names[cls_id]
+
+            output.append(Detection(cls_id, label, conf, (x1, y1, x2, y2)))
+
+        if overlay:
+            mask_np = masks[i].astype(np.uint8) * 255
+            mask_np = cv2.resize(mask_np, (w, h), interpolation=cv2.INTER_NEAREST)
+
+            color = highlight_colors[cls_id % len(highlight_colors)]
+            colored_mask = np.zeros_like(frame)
+
+            for c in range(3):
+                colored_mask[:, :, c] = mask_np * color[c]
+
+            frame[:] = cv2.addWeighted(frame, 1.0, colored_mask, 0.5, 0)
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)    
+
+        return output
+    
+    
+class YoloV8OpenVINOSegDetector(BaseDetector):
+    def __init__(self, xml_path, conf_threshold=0.5):
+        ie = Core()
+        
+        self.model = ie.read_model(model=xml_path)
+        self.compiled_model = ie.compile_model(self.model, "CPU")    
+        self.input_layer = self.compiled_model.input(0)
+        self.outputs = list(self.compiled_model.outputs)
+        self.input_shape = self.input_layer.shape
+        self.conf_threshold = conf_threshold
+
+    def detect(self, frame, overlay=True):
+        orig_h, orig_w = frame.shape[:2]
+        h, w = self.input_shape[2:]
+
+        # Resize and preprocess
+        resized = cv2.resize(frame, (w, h))
+        input_tensor = resized.transpose(2, 0, 1)[None].astype(np.float32) / 255.0
+
+        # Run inference
+        outputs = self.compiled_model(input_tensor)
+
+        preds = outputs[self.output_names[0]][0]  # shape: [N, 116]
+        masks = outputs[self.output_names[1]][0]  # shape: [N, H, W]
+
+        detections = []
+        for i in range(preds.shape[0]):
+            cls_scores = preds[i, 4:-32]
+            cls_id = int(np.argmax(cls_scores))
+            conf = cls_scores[cls_id] * preds[i, 4]  # obj_conf * class_conf
+
+            if conf < self.conf_threshold:
+                continue
+
+            x, y, w_box, h_box = preds[i, 0:4]
+            x1 = int((x - w_box / 2) * orig_w)
+            y1 = int((y - h_box / 2) * orig_h)
+            x2 = int((x + w_box / 2) * orig_w)
+            y2 = int((y + h_box / 2) * orig_h)
+
+            label = f"class_{cls_id}"
+            detections.append(Detection(cls_id, label, float(conf), (x1, y1, x2, y2)))
+            if overlay:
+                mask_embed = outputs[self.outputs[1]][0]
+                preds = outputs[self.outputs[0]][0]
+
+                mask_coeffs = preds[:, -32:]              # shape: (N, 32)
+                masks = np.einsum("nc,chw->nhw", mask_coeffs, mask_embed)  # shape: (N, H, W)
+                mask = cv2.resize(mask, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
+
+                # 1. Binarize the mask
+                bin_mask = (mask > 0.5).astype(np.uint8) * 255
+
+                # 2. Draw filled mask
+                color = highlight_colors[cls_id % len(highlight_colors)]
+                color_mask = np.zeros_like(frame)
+                for c in range(3):
+                    color_mask[:, :, c] = bin_mask * color[c]
+
+                frame[:] = cv2.addWeighted(frame, 1.0, color_mask, 0.5, 0)
+
+                # 3. Draw mask outline (contour)
+                contours, _ = cv2.findContours(bin_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(frame, contours, -1, color, thickness=2)
+
+                # 4. Optional box + label
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1 - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 3)
+
+
+        return detections
