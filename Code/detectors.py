@@ -271,7 +271,7 @@ class YoloV5VinoDetector(BaseDetector):
             conf = float(det[4])
             if conf < self.conf_threshold:
                 continue
-
+            
             # pick class
             scores = det[5:]
             cls_id = int(np.argmax(scores))
@@ -362,7 +362,20 @@ class YoloV8SegDetector(BaseDetector):
 class YoloV8OpenVINOSegDetector(BaseDetector):
     def __init__(self, xml_path, conf_threshold=0.5):
         ie = Core()
-        
+        self.class_names = [  # COCO 80 classes
+    "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck",
+    "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+    "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
+    "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
+    "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
+    "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa",
+    "pottedplant", "bed", "dining table", "toilet", "tvmonitor", "laptop", "mouse",
+    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier",
+    "toothbrush"
+]
         self.model = ie.read_model(model=xml_path)
         self.compiled_model = ie.compile_model(self.model, "CPU")    
         self.input_layer = self.compiled_model.input(0)
@@ -380,39 +393,45 @@ class YoloV8OpenVINOSegDetector(BaseDetector):
 
         # Run inference
         outputs = self.compiled_model(input_tensor)
-
-        preds = outputs[self.output_names[0]][0]  # shape: [N, 116]
-        masks = outputs[self.output_names[1]][0]  # shape: [N, H, W]
+        preds = outputs[self.outputs[0]][0].T  # Transpose: (116, 8400) → (8400, 116)
+        mask_embed = outputs[self.outputs[1]][0]  # (32, H, W)
 
         detections = []
-        for i in range(preds.shape[0]):
-            cls_scores = preds[i, 4:-32]
-            cls_id = int(np.argmax(cls_scores))
-            conf = cls_scores[cls_id] * preds[i, 4]  # obj_conf * class_conf
+        if preds.shape[0] == 0:
+            return detections
 
+        mask_coeffs = preds[:, -32:]  # (8400, 32)
+        masks = np.einsum("nc,chw->nhw", mask_coeffs, mask_embed)  # (8400, H, W)
+
+        for i in range(preds.shape[0]):
+            x, y, w_box, h_box = preds[i, 0:4]
+            obj_conf = preds[i, 4]
+            cls_scores = preds[i, 4:-32]
+
+            cls_id = int(np.argmax(cls_scores))
+            print(f"Detection {i}: Class ID {cls_id}, Confidence {obj_conf:.2f}")
+            if cls_id < 0 or cls_id >= len(self.class_names):
+                print(f"Invalid class ID {cls_id} for detection {i}, skipping.")
+                continue
+
+            conf = obj_conf * cls_scores[cls_id]
             if conf < self.conf_threshold:
                 continue
 
-            x, y, w_box, h_box = preds[i, 0:4]
+            # Rescale box
             x1 = int((x - w_box / 2) * orig_w)
             y1 = int((y - h_box / 2) * orig_h)
             x2 = int((x + w_box / 2) * orig_w)
             y2 = int((y + h_box / 2) * orig_h)
 
-            label = f"class_{cls_id}"
+            label = self.class_names[cls_id]
             detections.append(Detection(cls_id, label, float(conf), (x1, y1, x2, y2)))
+
             if overlay:
-                mask_embed = outputs[self.outputs[1]][0]
-                preds = outputs[self.outputs[0]][0]
-
-                mask_coeffs = preds[:, -32:]              # shape: (N, 32)
-                masks = np.einsum("nc,chw->nhw", mask_coeffs, mask_embed)  # shape: (N, H, W)
-                mask = cv2.resize(mask, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
-
-                # 1. Binarize the mask
+                # Resize mask to frame size
+                mask = cv2.resize(masks[i], (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
                 bin_mask = (mask > 0.5).astype(np.uint8) * 255
 
-                # 2. Draw filled mask
                 color = highlight_colors[cls_id % len(highlight_colors)]
                 color_mask = np.zeros_like(frame)
                 for c in range(3):
@@ -420,14 +439,13 @@ class YoloV8OpenVINOSegDetector(BaseDetector):
 
                 frame[:] = cv2.addWeighted(frame, 1.0, color_mask, 0.5, 0)
 
-                # 3. Draw mask outline (contour)
                 contours, _ = cv2.findContours(bin_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 cv2.drawContours(frame, contours, -1, color, thickness=2)
 
-                # 4. Optional box + label
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 3)
 
-
         return detections
+
+
