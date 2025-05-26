@@ -111,13 +111,13 @@ def generate_frames():
         final_mask = cv2.dilate(final_mask, None, iterations=2)
 
         contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        print("Contours:", len(contours))
+        # print("Contours:", len(contours))
 
         candidates = []
 
         for i, cnt in enumerate(contours):
             area = cv2.contourArea(cnt)
-            print(area)
+            # print(area)
             if area < 250 or area > 2000:
                 continue
 
@@ -382,7 +382,6 @@ def detect_laser_dot():
         detected = False
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            print(area)
             if area > 100:
                 continue  # filter by size
 

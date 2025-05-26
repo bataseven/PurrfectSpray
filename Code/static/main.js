@@ -266,7 +266,7 @@ document.addEventListener("DOMContentLoaded", function () {
             homingStatus.className = "status-value Error";
         } else if (data.gimbal_state === "homing_error") {
             homingStatus.textContent = "Error Homing";
-            homingStatus.className = "status-value Complete";
+            homingStatus.className = "status-value Error";
         } else if (data.gimbal_state === "unknown") {
             homingStatus.textContent = "Unknown State";
             homingStatus.className = "status-value Error";
