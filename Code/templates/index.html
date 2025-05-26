@@ -110,24 +110,10 @@
     <!-- Manual Motor Control -->
     <div class="control-section">
       <h2><i class="fas fa-cogs"></i> Manual Motor Control</h2>
-
-      <div id="motor1-control">
-        <h3>Motor 1</h3>
-        <input type="range" id="motor1-slider" min="-180" max="180" value="0" step="5">
-        <div class="position-display">
-          <span>Current: <span class="current-value" id="motor1-pos">0°</span></span>
-          <span>Target: <span class="target-value" id="motor1-target">0°</span></span>
+        <div id="joystick-container">
+          <div id="joystick"></div>
+          <div id="joystick-handle"></div>
         </div>
-      </div>
-
-      <div id="motor2-control">
-        <h3>Motor 2</h3>
-        <input type="range" id="motor2-slider" min="-180" max="180" value="0" step="5">
-        <div class="position-display">
-          <span>Current: <span class="current-value" id="motor2-pos">0°</span></span>
-          <span>Target: <span class="target-value" id="motor2-target">0°</span></span>
-        </div>
-      </div>
     </div>
 
   </div> <!-- close control-panel -->

@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const socket = io();
     const targetPositions = { 1: 0, 2: 0 };
     mouseX = null, mouseY = null, isHovering = false, lastSent = { x: null, y: null }, normPos = { x: null, y: null };;
-
     let mySocketId = null;
     socket.on("connect", () => {
         mySocketId = socket.id;
@@ -247,8 +246,8 @@ document.addEventListener("DOMContentLoaded", function () {
         isHomingComplete = data.gimbal_state === "ready";
 
 
-        document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
-        document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
+        // document.getElementById("motor1-pos").textContent = data.motor1.toFixed(2) + "°";
+        // document.getElementById("motor2-pos").textContent = data.motor2.toFixed(2) + "°";
         document.getElementById("cpu-temp").textContent = data.cpu_temp + "°C";
         const el = document.getElementById("gimbal-cpu-temp");
         el && (el.textContent = (data.gimbal_cpu_temp != null)
@@ -315,12 +314,12 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
         if (!isController) {
-            document.getElementById("motor1-slider").disabled = true;
-            document.getElementById("motor2-slider").disabled = true;
+            // document.getElementById("motor1-slider").disabled = true;
+            // document.getElementById("motor2-slider").disabled = true;
         }
         else {
-            document.getElementById("motor1-slider").disabled = false;
-            document.getElementById("motor2-slider").disabled = false;
+            // document.getElementById("motor1-slider").disabled = false;
+            // document.getElementById("motor2-slider").disabled = false;
         }
 
         hasControl = isController;
@@ -381,19 +380,19 @@ document.addEventListener("DOMContentLoaded", function () {
         socket.emit("set_motor_position", { motor: motorNum, position: deg });
     }
 
-    document.getElementById("motor1-slider").addEventListener("input", function () {
-        const deg = parseInt(this.value);
-        targetPositions[1] = deg;
-        document.getElementById("motor1-target").textContent = deg + "°";
-        emitMotorUpdate(1, deg);
-    });
+    // document.getElementById("motor1-slider").addEventListener("input", function () {
+    //     const deg = parseInt(this.value);
+    //     targetPositions[1] = deg;
+    //     document.getElementById("motor1-target").textContent = deg + "°";
+    //     emitMotorUpdate(1, deg);
+    // });
 
-    document.getElementById("motor2-slider").addEventListener("input", function () {
-        const deg = parseInt(this.value);
-        targetPositions[2] = deg;
-        document.getElementById("motor2-target").textContent = deg + "°";
-        emitMotorUpdate(2, deg);
-    });
+    // document.getElementById("motor2-slider").addEventListener("input", function () {
+    //     const deg = parseInt(this.value);
+    //     targetPositions[2] = deg;
+    //     document.getElementById("motor2-target").textContent = deg + "°";
+    //     emitMotorUpdate(2, deg);
+    // });
 
     // 🔁 Mouse Tracking for Follow Mode
     document.getElementById("video-feed").addEventListener("mouseenter", () => isHovering = true);
@@ -407,7 +406,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const scaleY = nativeHeight / renderedHeight;
         const x = Math.round((event.clientX - rect.left) * scaleX);
         const y = Math.round((event.clientY - rect.top) * scaleY);
-        
+
 
 
         normPos = { x: x, y: y };
@@ -452,7 +451,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const now = Date.now();
         const doubleClickThreshold = 1500; // ms        
         const renderedWidth = rect.width;
-        const renderedHeight = rect.height; 
+        const renderedHeight = rect.height;
         const nativeWidth = 1920;
         const nativeHeight = 1080;
         const scaleX = nativeWidth / renderedWidth;
@@ -510,22 +509,22 @@ document.addEventListener("DOMContentLoaded", function () {
     homeBtn.addEventListener("click", () => {
         socket.emit("request_home");
     });
-    
+
     socket.on("home_ack", (data) => {
-    // If the overall status isn’t "started", show it as an error/message
-    if (data.status !== "started") {
-        showToast(data.status);
-        return;
-    }
+        // If the overall status isn’t "started", show it as an error/message
+        if (data.status !== "started") {
+            showToast(data.status);
+            return;
+        }
 
-    // If there’s a remote error, show that instead of the generic message
-    if (data.remote && data.remote.error) {
-        showToast(`Remote homing failed: ${data.remote.error}`);
-        return;
-    }
+        // If there’s a remote error, show that instead of the generic message
+        if (data.remote && data.remote.error) {
+            showToast(`Remote homing failed: ${data.remote.error}`);
+            return;
+        }
 
-    // Only now show the success toast
-    showToast("Homing started…");
+        // Only now show the success toast
+        showToast("Homing started…");
     });
 
     document.querySelectorAll(".target-btn").forEach(btn => {
@@ -554,8 +553,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     setInterval(() => {
         if (controlMode !== "follow" || !isHovering) return;
-        
-        
+
+
 
         // skip if same as last
         if (normPos.x === lastSent.x && normPos.y === lastSent.y) return;
@@ -563,4 +562,137 @@ document.addEventListener("DOMContentLoaded", function () {
 
         socket.emit("click_target", { x: normPos.x, y: normPos.y });
     }, 50);
+
+
+
+    const joystick = document.getElementById('joystick');
+    const handle = document.getElementById('joystick-handle');
+    let dragging = false;
+    let overridePos = null;
+    let lastEmitTime = 0;
+    const EMIT_INTERVAL = 50; // ms
+
+    if (!joystick || !handle) return;
+
+    function getGeometry() {
+        const rect = joystick.getBoundingClientRect();
+        const radius = rect.width / 2;
+        const cx = rect.left + radius;
+        const cy = rect.top + radius;
+        return { radius, cx, cy };
+    }
+
+    // clamp raw dx,dy into the pad circle
+    function clampPosition(dx, dy) {
+        const { radius } = getGeometry();
+        const dist = Math.hypot(dx, dy);
+        const r = Math.min(dist, radius);
+        const angle = Math.atan2(dy, dx);
+        return { x: r * Math.cos(angle), y: r * Math.sin(angle) };
+    }
+
+    function emitAngles(pos) {
+        const now = performance.now();
+        if (now - lastEmitTime < EMIT_INTERVAL) {
+            // too soon—skip this one
+            return;
+        }
+        lastEmitTime = now;
+        const { radius } = getGeometry();
+        const normX = pos.x / radius;    // -1..+1
+        const normY = -pos.y / radius;   // invert so "up" is +ve
+        let theta1 = normX * 180;       // nominal -180..+180
+        let theta2 = normY * 180;
+
+        // Option B (if you prefer wrapping instead of hard-clamp):
+        const wrap = v => ((v + 180) % 360) - 180;
+        theta1 = wrap(theta1);
+        theta2 = wrap(theta2);
+
+        socket.emit('set_motor_position', { motor: 1, position: theta1 });
+        socket.emit('set_motor_position', { motor: 2, position: theta2 });
+
+        // record for override logic
+        overridePos = { theta1, theta2 };
+    }
+
+    // JS-driven tween from current → target (x,y) over `duration` ms
+    function animateHandleTo(targetX, targetY, duration = 100) {
+        // compute target in percent units
+        const leftPct = (targetX / joystick.clientWidth) * 100 + 50;
+        const topPct = (targetY / joystick.clientHeight) * 100 + 50;
+
+        // parse starting percent (fallback to 50%)
+        const startLeft = parseFloat(handle.style.left) || 50;
+        const startTop = parseFloat(handle.style.top) || 50;
+        const deltaLeft = leftPct - startLeft;
+        const deltaTop = topPct - startTop;
+        const startTime = performance.now();
+
+        function step(now) {
+            const t = Math.min((now - startTime) / duration, 1);
+            // you can swap this for an easing fn if you like:
+            const ease = t;
+            handle.style.left = (startLeft + deltaLeft * ease) + '%';
+            handle.style.top = (startTop + deltaTop * ease) + '%';
+
+            if (t < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+    }
+
+    // — click-to-jump on the pad —
+    joystick.addEventListener('pointerdown', e => {
+        if (e.target !== joystick) return;
+        e.preventDefault();
+        const { cx, cy } = getGeometry();
+        const pos = clampPosition(e.clientX - cx, e.clientY - cy);
+        emitAngles(pos);
+        animateHandleTo(pos.x, pos.y);
+    });
+
+    // — drag on the handle as before —
+    handle.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        dragging = true;
+        handle.setPointerCapture(e.pointerId);
+    });
+    document.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        const { cx, cy } = getGeometry();
+        const pos = clampPosition(e.clientX - cx, e.clientY - cy);
+        emitAngles(pos);
+        handle.style.transition = 'none';            // keep instantaneous while dragging
+        handle.style.left = (pos.x / joystick.clientWidth) * 100 + 50 + '%';
+        handle.style.top = (pos.y / joystick.clientHeight) * 100 + 50 + '%';
+    });
+    document.addEventListener('pointerup', e => {
+        if (!dragging) return;
+        dragging = false;
+        handle.releasePointerCapture(e.pointerId);
+        handle.style.transition = '';                // restore any CSS transition (if used)
+    });
+
+    // — server updates, with override logic —
+    socket.on('status_update', data => {
+        if (dragging) return;
+        const { radius } = getGeometry();
+        let x, y;
+
+        if (overridePos) {
+            x = (overridePos.theta1 / 180) * radius;
+            y = -(overridePos.theta2 / 180) * radius;
+            const Δ1 = Math.abs(data.motor1 - overridePos.theta1);
+            const Δ2 = Math.abs(data.motor2 - overridePos.theta2);
+            if (Δ1 < 0.5 && Δ2 < 0.5) overridePos = null;
+        } else {
+            x = (data.motor1 / 180) * radius;
+            y = -(data.motor2 / 180) * radius;
+        }
+
+        // tween the handle to the new spot
+        animateHandleTo(x, y);
+    });
+    animateHandleTo(0, 0, 300);
+
 });
